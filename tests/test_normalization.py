@@ -1,8 +1,14 @@
-from ioc_analyzer.app import (
+from ioc_analyzer.normalization import (
     normalize_ip_result,
     normalize_domain_result,
     normalize_file_result,
     format_timestamp,
+)
+from ioc_analyzer.normalization import (
+    format_timestamp,
+    normalize_file_result,
+    normalize_domain_result,
+    normalize_ip_result,
 )
 
 
@@ -103,6 +109,21 @@ def test_normalize_ip_without_provider_results():
     assert result["indicator"] == "8.8.8.8"
     assert result["virustotal"] is None
     assert result["abuseipdb"] is None
+
+
+def test_normalize_ip_explicit_indicator_takes_priority():
+    vt_result = {
+        "artifact": "1.1.1.1",
+        "analysis_stats": {},
+    }
+
+    result = normalize_ip_result(
+        vt_result,
+        None,
+        indicator="8.8.8.8",
+    )
+
+    assert result["indicator"] == "8.8.8.8"
 
 
 def test_normalize_domain_result():
