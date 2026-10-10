@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## How to work with me
+- I'm learning software engineering. My goal is understanding, not speed.
+- Do NOT write core logic (parsing, extraction, API clients, normalization) unless I explicitly ask.
+- Before suggesting a change, explain the approach and trade-offs first.
+- When reviewing my code, point out problems and ask me guiding questions instead of rewriting it.
+- You MAY write boilerplate: packaging config, CI, test fixtures, docs.
+- Run `pytest` after changes and explain any failures.
+
 ## What this is
 
 A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) out of free text and looks them up on VirusTotal and AbuseIPDB, then prints a colored report per indicator.

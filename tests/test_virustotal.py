@@ -4,23 +4,28 @@ from ioc_analyzer.app import (
     parse_vt_domain,
     parse_vt_file,
 )
+import pytest
+
+VT_BASE = "https://www.virustotal.com/api/v3"
 
 
-def test_get_vt_url():
-    assert (
-        get_vt_url("8.8.8.8")
-        == f"https://www.virustotal.com/api/v3/ip_addresses/8.8.8.8"
-    )
-    artifact = "a" * 40
-    assert get_vt_url(artifact) == f"https://www.virustotal.com/api/v3/files/{artifact}"
-    artifact = "example.com"
-    assert (
-        get_vt_url(artifact) == f"https://www.virustotal.com/api/v3/domains/{artifact}"
-    )
+@pytest.mark.parametrize(
+    "artifact, expected_path",
+    [
+        ("8.8.8.8", "ip_addresses"),
+        ("a" * 32, "files"),  # MD5
+        ("a" * 40, "files"),  # SHA1
+        ("a" * 64, "files"),  # SHA256
+        ("example.com", "domains"),
+    ],
+)
+def test_get_vt_url(artifact, expected_path):
+    assert get_vt_url(artifact) == f"{VT_BASE}/{expected_path}/{artifact}"
 
 
-def test_parse_vt_ip():
-    response = {
+@pytest.fixture
+def vt_ip_response():
+    return {
         "data": {
             "id": "8.8.8.8",
             "type": "ip_address",
@@ -37,18 +42,11 @@ def test_parse_vt_ip():
             },
         }
     }
-    result = parse_vt_ip(response)
-    assert result["artifact"] == "8.8.8.8"
-    assert result["network"] == "8.8.8.0/24"
-    assert result["asn"] == 15169
-    assert result["as_owner"] == "GOOGLE"
-    assert result["country"] == "US"
-    assert result["reputation"] == 5
-    assert result["analysis_stats"] == {"malicious": 1, "suspicious": 2}
 
 
-def test_parse_vt_domain():
-    response = {
+@pytest.fixture
+def vt_domain_response():
+    return {
         "data": {
             "id": "example.com",
             "type": "domain",
@@ -96,13 +94,112 @@ def test_parse_vt_domain():
             },
         }
     }
-    result = parse_vt_domain(response)
+
+
+@pytest.fixture
+def vt_file_response():
+    sha256 = "b" * 64
+    return {
+        "data": {
+            "id": sha256,
+            "type": "file",
+            "attributes": {
+                "last_analysis_stats": {
+                    "malicious": 40,
+                    "suspicious": 1,
+                    "harmless": 0,
+                    "undetected": 30,
+                },
+                "reputation": -20,
+                "meaningful_name": "invoice.exe",
+                "names": ["invoice.exe", "payload.bin"],
+                "type_description": "Win32 EXE",
+                "type_extension": "exe",
+                "size": 102400,
+                "md5": "c" * 32,
+                "sha1": "d" * 40,
+                "sha256": sha256,
+                "first_submission_date": 1609459200,
+                "last_submission_date": 1756684800,
+                "last_analysis_date": 1756684800,
+                "tags": ["peexe", "signed"],
+                "popular_threat_classification": {
+                    "suggested_threat_label": "trojan.agent",
+                },
+                "sandbox_verdicts": {
+                    "Zenbox": {"category": "malicious"},
+                },
+            },
+        }
+    }
+
+
+def test_parse_vt_ip(vt_ip_response):
+    result = parse_vt_ip(vt_ip_response)
+    assert result["artifact"] == "8.8.8.8"
+    assert result["network"] == "8.8.8.0/24"
+    assert result["asn"] == 15169
+    assert result["as_owner"] == "GOOGLE"
+    assert result["country"] == "US"
+    assert result["reputation"] == 5
+    assert result["analysis_stats"] == {"malicious": 1, "suspicious": 2}
+
+
+def test_parse_vt_ip_missing_id(vt_ip_response):
+    del vt_ip_response["data"]["id"]
+    with pytest.raises(KeyError, match="id"):
+        parse_vt_ip(vt_ip_response)
+
+
+def test_parse_vt_ip_missing_reputation_is_none(vt_ip_response):
+    del vt_ip_response["data"]["attributes"]["reputation"]
+    result = parse_vt_ip(vt_ip_response)
+    assert result["reputation"] is None
+
+
+def test_parse_vt_domain(vt_domain_response):
+    result = parse_vt_domain(vt_domain_response)
     assert result["artifact"] == "example.com"
     assert result["type"] == "domain"
     assert result["reputation"] == -5
     assert result["registrar"] == "Example Registrar Inc."
     assert result["tld"] == "com"
+    # Keys that parse_vt_domain renames from the VT response
     assert result["analysis_stats"]["malicious"] == 1
+    assert result["dns_records"][0] == {"type": "A", "value": "93.184.216.34"}
+    assert result["dns_records_date"] == 1756684800
 
-def test_parse_vt_ip_missing_required_data():
-    
+
+def test_parse_vt_domain_missing_id(vt_domain_response):
+    del vt_domain_response["data"]["id"]
+    with pytest.raises(KeyError, match="id"):
+        parse_vt_domain(vt_domain_response)
+
+
+def test_parse_vt_domain_missing_reputation_is_none(vt_domain_response):
+    del vt_domain_response["data"]["attributes"]["reputation"]
+    result = parse_vt_domain(vt_domain_response)
+    assert result["type"] == "domain"
+    assert result["reputation"] is None
+
+
+def test_parse_vt_file(vt_file_response):
+    result = parse_vt_file(vt_file_response)
+    assert result["artifact"] == "b" * 64
+    assert result["type"] == "file"
+    assert result["reputation"] == -20
+    assert result["meaningful_name"] == "invoice.exe"
+    assert result["md5"] == "c" * 32
+    assert result["sha1"] == "d" * 40
+    assert result["sha256"] == "b" * 64
+    # Keys that parse_vt_file renames from the VT response
+    assert result["analysis_stats"]["malicious"] == 40
+    assert result["threat_classification"] == {
+        "suggested_threat_label": "trojan.agent",
+    }
+
+
+def test_parse_vt_file_missing_id(vt_file_response):
+    del vt_file_response["data"]["id"]
+    with pytest.raises(KeyError, match="id"):
+        parse_vt_file(vt_file_response)
