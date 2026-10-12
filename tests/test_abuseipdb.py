@@ -1,5 +1,5 @@
 from ioc_analyzer import app
-from ioc_analyzer.app import query_abuse
+from ioc_analyzer.app import query_abuse, ProviderError
 import pytest
 
 
@@ -64,10 +64,11 @@ def test_query_abuse_maps_response_fields(fake_get_json):
     assert result["is_tor"] is False
 
 
-def test_query_abuse_missing_api(monkeypatch):
-    monkeypatch.delenv("ABUSEIPDB_API", raising=False)
+def test_query_abuse_missing_api(monkeypatch, fake_get_json):
+    monkeypatch.delenv("ABUSEIPDB_API")
     with pytest.raises(ValueError, match="AbuseIPDB"):
         query_abuse("1.2.3.4")
+    assert fake_get_json == []
 
 
 def test_query_abuse_missing_confidence(fake_get_json, abuse_response):
@@ -76,7 +77,19 @@ def test_query_abuse_missing_confidence(fake_get_json, abuse_response):
     assert result["abuse_confidence"] is None
 
 
+def test_query_abuse_confidence_is_zero(fake_get_json, abuse_response):
+    abuse_response["data"]["abuseConfidenceScore"] = 0
+    result = query_abuse("1.2.3.4")
+    assert result["abuse_confidence"] == 0
+
+
 def test_query_abuse_no_data(fake_get_json, abuse_response):
-    del abuse_response["data"]
-    with pytest.raises(KeyError, match="data"):
+    abuse_response.clear()
+    abuse_response["errors"] = [
+        {
+            "detail": "The ip address must be a valid IPv4 or IPv6",
+            "status": 422,
+        }
+    ]
+    with pytest.raises(ProviderError, match="valid IPv4"):
         query_abuse("1.2.3.4")

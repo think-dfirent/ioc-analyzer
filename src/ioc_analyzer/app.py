@@ -189,6 +189,10 @@ def query_vt(artifact):
         raise ValueError(f"Unsupported VT type: {artifact_type}")
 
 
+class ProviderError(Exception):
+    """This provider answered, but with an error instead of data"""
+
+
 def query_abuse(artifact):
     abuse_api = os.getenv("ABUSEIPDB_API")
     if not abuse_api:
@@ -199,7 +203,14 @@ def query_abuse(artifact):
     querystring = {"ipAddress": artifact, "maxAgeInDays": "90"}
     response = get_json(url=abuse_url, headers=abuse_headers, params=querystring)
 
-    data = response["data"]
+    data = response.get("data")
+    if data is None:
+        errors = response.get("errors") or []
+        if errors:
+            detail = errors[0].get("detail", "no error detail given")
+        else:
+            detail = "no data and no error details in response"
+        raise ProviderError(f"AbuseIPDB: {detail}")
     result = {
         "artifact": data.get("ipAddress"),
         "source": "AbuseIPDB",
@@ -340,11 +351,15 @@ def print_file_result(result):
 
 def query_safely(provider, query, artifact):
     try:
-        return query(artifact)
-    except requests.HTTPError as exc:
+        query(artifact)
+    except ProviderError as exc:
+        print_error(f"{artifact}: {provider} failed ({exc})")
+    except requests.HTTPerror as exc:
         status = exc.response.status_code if exc.response is not None else "unknown"
         print_error(f"{artifact}: {provider} HTTP error {status}")
-    except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+    except requests.RequestException as exc:
+        print_error(f"{artifact}: {provider} unreachable ({exc})")
+    except (ValueError, KeyError, TypeError) as exc:
         print_error(f"{artifact}: {provider} unavailable ({exc})")
     return None
 
