@@ -169,20 +169,43 @@ def test_normalize_domain_result():
     assert result["tags"] == ["test", "demo"]
 
 
-def test_normalize_domain_with_missing_optional_data():
+def test_normalized_domain_missing_optional_data():
     result = normalize_domain_result(
         {
             "artifact": "example.com",
             "analysis_stats": None,
         }
     )
-
-    assert result["virustotal"]["malicious"] == 0
-    assert result["virustotal"]["suspicious"] == 0
-    assert result["virustotal"]["total"] == 0
     assert result["dns"]["records"] == []
     assert result["tags"] == []
     assert result["domain_context"]["creation_date"] is None
+
+
+def test_normalize_domain_missing_stats_is_unknown():
+    result = normalize_domain_result(
+        {
+            "artifact": "example.com",
+            "analysis_stats": None,
+        }
+    )
+    assert result["virustotal"]["malicious"] is None
+    assert result["virustotal"]["suspicious"] is None
+    assert result["virustotal"]["total"] is None
+
+
+def test_normalize_domain_real_zero_stays_zero():
+    result = normalize_domain_result(
+        {
+            "artifact": "example.com",
+            "analysis_stats": {
+                "suspicious": 10,
+                "malicious": 9,
+            },
+        }
+    )
+    assert result["virustotal"]["malicious"] == 9
+    assert result["virustotal"]["suspicious"] == 10
+    assert result["virustotal"]["total"] == 19
 
 
 def test_normalize_file_result():

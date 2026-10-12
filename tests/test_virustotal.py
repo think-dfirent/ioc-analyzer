@@ -23,6 +23,12 @@ def test_get_vt_url(artifact, expected_path):
     assert get_vt_url(artifact) == f"{VT_BASE}/{expected_path}/{artifact}"
 
 
+def test_get_vt_rejects_unrecognized_input():
+    artifact = "a" * 41
+    with pytest.raises(ValueError, match="Unrecognized"):
+        get_vt_url(artifact)
+
+
 @pytest.fixture
 def vt_ip_response():
     return {
@@ -157,6 +163,12 @@ def test_parse_vt_ip_missing_reputation_is_none(vt_ip_response):
     assert result["reputation"] is None
 
 
+def test_parse_vt_ip_missing_last_analysis_stats(vt_ip_response):
+    del vt_ip_response["data"]["attributes"]["last_analysis_stats"]
+    result = parse_vt_ip(vt_ip_response)
+    assert result["analysis_stats"] is None
+
+
 def test_parse_vt_domain(vt_domain_response):
     result = parse_vt_domain(vt_domain_response)
     assert result["artifact"] == "example.com"
@@ -183,6 +195,12 @@ def test_parse_vt_domain_missing_reputation_is_none(vt_domain_response):
     assert result["reputation"] is None
 
 
+def test_parse_vt_domain_missing_last_analysis_stats(vt_domain_response):
+    del vt_domain_response["data"]["attributes"]["last_analysis_stats"]
+    result = parse_vt_domain(vt_domain_response)
+    assert result["analysis_stats"] is None
+
+
 def test_parse_vt_file(vt_file_response):
     result = parse_vt_file(vt_file_response)
     assert result["artifact"] == "b" * 64
@@ -203,3 +221,9 @@ def test_parse_vt_file_missing_id(vt_file_response):
     del vt_file_response["data"]["id"]
     with pytest.raises(KeyError, match="id"):
         parse_vt_file(vt_file_response)
+
+
+def test_parse_vt_file_missing_last_analysis_stats(vt_file_response):
+    del vt_file_response["data"]["attributes"]["last_analysis_stats"]
+    result = parse_vt_file(vt_file_response)
+    assert result["analysis_stats"] is None

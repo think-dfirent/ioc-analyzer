@@ -120,8 +120,7 @@ def parse_vt_domain(response):
     data = response["data"]
     attributes = data["attributes"]
 
-    stats = attributes.get("last_analysis_stats", {})
-
+    stats = attributes.get("last_analysis_stats")
     return {
         "artifact": data["id"],
         "type": "domain",
