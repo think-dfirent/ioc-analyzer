@@ -3,7 +3,20 @@
 
 # virtualenv
 venv*/
+venv/
 .venv/
 ENV/
 
 test.py
+
+#python bytecode
+__pycache__/
+*.py[cod]
+#packaging / build output
+*.egg-info
+build/
+dist/
+
+#tools
+.pytest_cache
+.ruff_cache

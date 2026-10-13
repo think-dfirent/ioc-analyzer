@@ -198,14 +198,16 @@ def test_normalize_domain_real_zero_stays_zero():
         {
             "artifact": "example.com",
             "analysis_stats": {
-                "suspicious": 10,
-                "malicious": 9,
+                "suspicious": 0,
+                "malicious": 0,
+                "harmless": 10,
+                "undetected": 20,
             },
         }
     )
-    assert result["virustotal"]["malicious"] == 9
-    assert result["virustotal"]["suspicious"] == 10
-    assert result["virustotal"]["total"] == 19
+    assert result["virustotal"]["malicious"] == 0
+    assert result["virustotal"]["suspicious"] == 0
+    assert result["virustotal"]["total"] == 30
 
 
 def test_normalize_file_result():

@@ -58,14 +58,12 @@ def normalize_ip_result(vt_result, abuse_result, indicator=None):
 
 def normalize_domain_result(vt_result):
     stats = vt_result.get("analysis_stats")
-    total = sum(stats.values()) if stats else None
     if stats is None:
-        malicious = None
-        suspicious = None
-        total = None
+        malicious = suspicious = total = None
     else:
         malicious = stats.get("malicious")
         suspicious = stats.get("suspicious")
+        total = sum(stats.values())
     dns_records = []
 
     for record in vt_result.get("dns_records") or []:
@@ -93,8 +91,13 @@ def normalize_domain_result(vt_result):
 
 
 def normalize_file_result(vt_result):
-    stats = vt_result["analysis_stats"] or {}
-    total = sum(stats.values())
+    stats = vt_result.get("analysis_stats")
+    if stats is None:
+        suspicious = malicious = total = None
+    else:
+        total = sum(stats.values())
+        suspicious = stats.get("suspicious")
+        malicious = stats.get("malicious")
 
     classification = vt_result.get("threat_classification") or {}
 
@@ -107,8 +110,8 @@ def normalize_file_result(vt_result):
         "indicator": vt_result["artifact"],
         "type": "file",
         "virustotal": {
-            "malicious": stats.get("malicious", 0),
-            "suspicious": stats.get("suspicious", 0),
+            "malicious": malicious,
+            "suspicious": suspicious,
             "total": total,
             "reputation": vt_result.get("reputation"),
             "threat_label": classification.get("suggested_threat_label"),
