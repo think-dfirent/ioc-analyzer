@@ -13,6 +13,7 @@ from ioc_analyzer.normalization import (
     normalize_domain_result,
     normalize_ip_result,
 )
+from ioc_analyzer.clients.errors import ProviderError
 
 COLORS = {
     "heading": "1;36",
@@ -186,10 +187,6 @@ def query_vt(artifact):
         return parse_vt_file(response)
     else:
         raise ValueError(f"Unsupported VT type: {artifact_type}")
-
-
-class ProviderError(Exception):
-    """This provider answered, but with an error instead of data"""
 
 
 def query_abuse(artifact):

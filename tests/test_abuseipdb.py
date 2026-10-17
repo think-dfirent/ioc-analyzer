@@ -1,5 +1,6 @@
 from ioc_analyzer import app
-from ioc_analyzer.app import query_abuse, ProviderError
+from ioc_analyzer.app import query_abuse
+from ioc_analyzer.clients.errors import ProviderError
 import pytest
 
 
@@ -23,7 +24,6 @@ def abuse_response():
             "lastReportedAt": "2026-10-01T12:34:56+00:00",
         }
     }
-
 
 
 @pytest.fixture
