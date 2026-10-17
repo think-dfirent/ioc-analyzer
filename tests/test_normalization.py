@@ -261,7 +261,7 @@ def test_normalize_file_with_missing_optional_data():
         }
     )
 
-    assert result["virustotal"]["total"] == 0
+    assert result["virustotal"]["total"] is None
     assert result["virustotal"]["threat_label"] is None
     assert result["file_context"]["tags"] == []
     assert result["timeline"]["first_submission"] is None

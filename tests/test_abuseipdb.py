@@ -25,13 +25,6 @@ def abuse_response():
     }
 
 
-""" The tests wil be:
-A full response test
-Test_query_abuse: test full the response
-test_query_abuse_missing_api
-test_query_abuse_missing_confidence
-"""
-
 
 @pytest.fixture
 def fake_get_json(monkeypatch, abuse_response):
