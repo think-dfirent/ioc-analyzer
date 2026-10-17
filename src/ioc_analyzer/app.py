@@ -347,10 +347,10 @@ def print_file_result(result):
 
 def query_safely(provider, query, artifact):
     try:
-        query(artifact)
+        return query(artifact)
     except ProviderError as exc:
         print_error(f"{artifact}: {provider} failed ({exc})")
-    except requests.HTTPerror as exc:
+    except requests.HTTPError as exc:
         status = exc.response.status_code if exc.response is not None else "unknown"
         print_error(f"{artifact}: {provider} HTTP error {status}")
     except requests.RequestException as exc:
