@@ -13,6 +13,12 @@ from ioc_analyzer.normalization import (
     normalize_domain_result,
     normalize_ip_result,
 )
+from ioc_analyzer.clients.virustotal import (
+    parse_vt_domain,
+    parse_vt_file,
+    parse_vt_ip,
+)
+
 from ioc_analyzer.clients.errors import ProviderError
 
 COLORS = {
@@ -100,71 +106,6 @@ def get_json(url, headers, params=None):
     response = requests.get(url=url, headers=headers, params=params, timeout=10)
     response.raise_for_status()
     return response.json()
-
-
-def parse_vt_ip(response):
-    attributes = response["data"]["attributes"]
-
-    result = {
-        "artifact": response["data"]["id"],
-        "network": attributes.get("network"),
-        "asn": attributes.get("asn"),
-        "as_owner": attributes.get("as_owner"),
-        "country": attributes.get("country"),
-        "reputation": attributes.get("reputation"),
-        "analysis_stats": attributes.get("last_analysis_stats"),
-    }
-    return result
-
-
-def parse_vt_domain(response):
-    data = response["data"]
-    attributes = data["attributes"]
-
-    stats = attributes.get("last_analysis_stats")
-    return {
-        "artifact": data["id"],
-        "type": "domain",
-        "analysis_stats": stats,
-        "reputation": attributes.get("reputation"),
-        "total_votes": attributes.get("total_votes"),
-        "categories": attributes.get("categories"),
-        "registrar": attributes.get("registrar"),
-        "tld": attributes.get("tld"),
-        "creation_date": attributes.get("creation_date"),
-        "expiration_date": attributes.get("expiration_date"),
-        "first_seen_date": attributes.get("first_seen_date"),
-        "last_analysis_date": attributes.get("last_analysis_date"),
-        "dns_records": attributes.get("last_dns_records"),
-        "dns_records_date": attributes.get("last_dns_records_date"),
-        "tags": attributes.get("tags"),
-    }
-
-
-def parse_vt_file(response):
-    data = response["data"]
-    attributes = data["attributes"]
-
-    return {
-        "artifact": data["id"],
-        "type": "file",
-        "analysis_stats": attributes.get("last_analysis_stats"),
-        "reputation": attributes.get("reputation"),
-        "meaningful_name": attributes.get("meaningful_name"),
-        "names": attributes.get("names"),
-        "type_description": attributes.get("type_description"),
-        "type_extension": attributes.get("type_extension"),
-        "size": attributes.get("size"),
-        "md5": attributes.get("md5"),
-        "sha1": attributes.get("sha1"),
-        "sha256": attributes.get("sha256"),
-        "first_submission_date": attributes.get("first_submission_date"),
-        "last_submission_date": attributes.get("last_submission_date"),
-        "last_analysis_date": attributes.get("last_analysis_date"),
-        "tags": attributes.get("tags"),
-        "threat_classification": attributes.get("popular_threat_classification"),
-        "sandbox_verdicts": attributes.get("sandbox_verdicts"),
-    }
 
 
 # query the TI platforms

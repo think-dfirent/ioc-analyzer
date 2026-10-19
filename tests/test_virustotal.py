@@ -1,5 +1,5 @@
-from ioc_analyzer.app import (
-    get_vt_url,
+from ioc_analyzer.app import get_vt_url
+from ioc_analyzer.clients.virustotal import (
     parse_vt_ip,
     parse_vt_domain,
     parse_vt_file,
