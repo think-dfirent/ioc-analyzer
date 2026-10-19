@@ -81,13 +81,19 @@ def client():
     return VirusTotalClient(api_key="test-key", timeout=5)
 
 
-def test_lookup_returns_json_when_found(client, fake_get):
-    fake_get(FakeResponse(200, {"data": {"id": "8.8.8.8"}}))
-    assert client.lookup("8.8.8.8", "ip") == {"data": {"id": "8.8.8.8"}}
+def vt_ip_payload():
+    return {"data": {"id": "8.8.8.8", "type": "ip_address", "attributes": {}}}
+
+
+def test_lookup_returns_parsed_report_when_found(client, fake_get):
+    fake_get(FakeResponse(200, vt_ip_payload()))
+    result = client.lookup("8.8.8.8", "ip")
+    assert result["artifact"] == "8.8.8.8"
+    assert result["analysis_stats"] is None
 
 
 def test_lookup_sends_key_header_and_timeout(client, fake_get):
-    calls = fake_get(FakeResponse(200, {}))
+    calls = fake_get(FakeResponse(200, vt_ip_payload()))
     client.lookup("8.8.8.8", "ip")
     assert calls[0]["headers"] == {"x-apikey": "test-key"}
     assert calls[0]["timeout"] == 5
@@ -121,4 +127,18 @@ def test_lookup_network_failure_is_provider_error(client, fake_get):
 def test_lookup_non_json_body_is_provider_error(client, fake_get):
     fake_get(FakeResponse(200, payload=None))
     with pytest.raises(ProviderError, match="not JSON"):
+        client.lookup("8.8.8.8", "ip")
+
+
+def test_lookup_missing_id_is_provider_error(client, fake_get):
+    payload = vt_ip_payload()
+    del payload["data"]["id"]
+    fake_get(FakeResponse(200, payload))
+    with pytest.raises(ProviderError, match="missing field 'id'"):
+        client.lookup("8.8.8.8", "ip")
+
+
+def test_lookup_non_object_json_is_provider_error(client, fake_get):
+    fake_get(FakeResponse(200, ["not", "a", "dict"]))
+    with pytest.raises(ProviderError, match="unexpected shape"):
         client.lookup("8.8.8.8", "ip")

@@ -86,6 +86,13 @@ def parse_vt_file(response):
     }
 
 
+_PARSER = {
+    "ip": parse_vt_ip,
+    "domain": parse_vt_domain,
+    "file": parse_vt_file,
+}
+
+
 class VirusTotalClient:
     def __init__(
         self, api_key: str | None, timeout: float = DEFAULT_TIMEOUT_SECONDS
@@ -99,6 +106,17 @@ class VirusTotalClient:
 
     def lookup(self, artifact: str, kind: ArtifactKind) -> dict[str, Any] | None:
         url = build_url(artifact, kind)
+        parser = _PARSER[kind]
+        payload = self._fetch(url)
+        if payload is None:
+            return None
+        try:
+            return parser(payload)
+        except KeyError as exc:
+            raise ProviderError(f"VirusTotal response is missing field {exc}") from exc
+
+    def _fetch(self, url: str) -> dict[str, Any] | None:
+        """Send the GET request and return the JSON body, or None on 404."""
         try:
             response = requests.get(
                 url, headers={"x-apikey": self._api_key}, timeout=self._timeout
@@ -117,8 +135,11 @@ class VirusTotalClient:
             raise ProviderError(f"VirusTotal returned HTTP {status}")
 
         try:
-            return response.json()
+            payload = response.json()
         except ValueError as exc:
             raise ProviderError(
                 "VirusTotal returned a response that is not JSON"
             ) from exc
+        if not isinstance(payload, dict):
+            raise ProviderError("VirusTotal returned JSON with an unexpected shape")
+        return payload
