@@ -6,7 +6,6 @@ from ioc_analyzer.extractors import (
     ip_extraction,
     domain_extraction,
     hash_extraction,
-    is_domain,
 )
 from ioc_analyzer.normalization import (
     normalize_file_result,
@@ -15,9 +14,6 @@ from ioc_analyzer.normalization import (
 )
 from ioc_analyzer.clients.virustotal import (
     VirusTotalClient,
-    parse_vt_domain,
-    parse_vt_file,
-    parse_vt_ip,
 )
 
 from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
@@ -86,49 +82,10 @@ def print_vt_stats(vt):
     print(f"Reputation     : {color_text(reputation, tone)}")
 
 
-def get_vt_url(artifact):
-    try:
-        ipaddress.ip_address(artifact)
-        return f"https://www.virustotal.com/api/v3/ip_addresses/{artifact}"
-    except ValueError:
-        pass
-
-    if re.fullmatch(r"[a-fA-F0-9]{32}|[a-fA-F0-9]{40}|[a-fA-F0-9]{64}", artifact):
-        return f"https://www.virustotal.com/api/v3/files/{artifact}"
-
-    if is_domain(artifact):
-        return f"https://www.virustotal.com/api/v3/domains/{artifact}"
-
-    # If it matches none of the above
-    raise ValueError(f"Unrecognized artifact format: {artifact}")
-
-
 def get_json(url, headers, params=None):
     response = requests.get(url=url, headers=headers, params=params, timeout=10)
     response.raise_for_status()
     return response.json()
-
-
-# query the TI platforms
-def query_vt(artifact):
-    vt_api = os.getenv("VIRUSTOTAL_API")
-
-    if not vt_api:
-        raise ValueError("VirusTotal's API is not configured!")
-    # vt query
-    vt_url = get_vt_url(artifact)
-    vt_headers = {"x-apikey": vt_api}
-    response = get_json(vt_url, vt_headers)
-
-    artifact_type = response["data"]["type"]
-    if artifact_type == "ip_address":
-        return parse_vt_ip(response)
-    elif artifact_type == "domain":
-        return parse_vt_domain(response)
-    elif artifact_type == "file":
-        return parse_vt_file(response)
-    else:
-        raise ValueError(f"Unsupported VT type: {artifact_type}")
 
 
 def query_abuse(artifact):

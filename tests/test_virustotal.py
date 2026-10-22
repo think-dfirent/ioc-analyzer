@@ -1,32 +1,9 @@
-from ioc_analyzer.app import get_vt_url
 from ioc_analyzer.clients.virustotal import (
     parse_vt_ip,
     parse_vt_domain,
     parse_vt_file,
 )
 import pytest
-
-VT_BASE = "https://www.virustotal.com/api/v3"
-
-
-@pytest.mark.parametrize(
-    "artifact, expected_path",
-    [
-        ("8.8.8.8", "ip_addresses"),
-        ("a" * 32, "files"),  # MD5
-        ("a" * 40, "files"),  # SHA1
-        ("a" * 64, "files"),  # SHA256
-        ("example.com", "domains"),
-    ],
-)
-def test_get_vt_url(artifact, expected_path):
-    assert get_vt_url(artifact) == f"{VT_BASE}/{expected_path}/{artifact}"
-
-
-def test_get_vt_rejects_unrecognized_input():
-    artifact = "a" * 41
-    with pytest.raises(ValueError, match="Unrecognized"):
-        get_vt_url(artifact)
 
 
 @pytest.fixture
