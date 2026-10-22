@@ -315,6 +315,7 @@ def main(argv=None):
         else:
             result = normalize_file_result(vt)
         print_analysis(result)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
