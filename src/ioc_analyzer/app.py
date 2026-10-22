@@ -20,7 +20,7 @@ from ioc_analyzer.clients.virustotal import (
     parse_vt_ip,
 )
 
-from ioc_analyzer.clients.errors import ProviderError
+from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 
 COLORS = {
     "heading": "1;36",
@@ -290,6 +290,8 @@ def print_file_result(result):
 def query_safely(provider, query, artifact):
     try:
         return query(artifact)
+    except ProviderUnavailableError:
+        raise
     except ProviderError as exc:
         print_error(f"{artifact}: {provider} failed ({exc})")
     except requests.HTTPError as exc:
@@ -329,9 +331,18 @@ def main(argv=None):
         return 1
 
     failed = False
+    vt_enabled = True
     for artifact, kind in dict.fromkeys(indicators):
-        vt = query_safely("VirusTotal", lambda a: vt_client.lookup(a, kind), artifact)
-        failed |= vt is None
+        vt = None
+        if vt_enabled:
+            try:
+                vt = query_safely(
+                    "VirusTotal", lambda a: vt_client.lookup(a, kind), artifact
+                )
+            except ProviderUnavailableError as exc:
+                print_error(f"VirusTotal disabled for the rest of this run: {exc}")
+                vt_enabled = False
+            failed |= vt is None
         if kind == "ip":
             abuse = query_safely("AbuseIPDB", query_abuse, artifact)
             failed |= abuse is None
