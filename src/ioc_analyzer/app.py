@@ -14,6 +14,7 @@ from ioc_analyzer.normalization import (
     normalize_ip_result,
 )
 from ioc_analyzer.clients.virustotal import (
+    VirusTotalClient,
     parse_vt_domain,
     parse_vt_file,
     parse_vt_ip,
@@ -303,6 +304,11 @@ def query_safely(provider, query, artifact):
 
 def main(argv=None):
     load_dotenv()
+    try:
+        vt_client = VirusTotalClient(api_key=os.getenv("VIRUSTOTAL_API"))
+    except ValueError as exc:
+        print_error(str(exc))
+        return 1
     argv = sys.argv[1:] if argv is None else argv
     if argv:
         text = " ".join(argv)
@@ -324,7 +330,7 @@ def main(argv=None):
 
     failed = False
     for artifact, kind in dict.fromkeys(indicators):
-        vt = query_safely("VirusTotal", query_vt, artifact)
+        vt = query_safely("VirusTotal", lambda a: vt_client.lookup(a, kind), artifact)
         failed |= vt is None
         if kind == "ip":
             abuse = query_safely("AbuseIPDB", query_abuse, artifact)

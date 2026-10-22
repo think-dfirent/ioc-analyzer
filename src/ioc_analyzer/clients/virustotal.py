@@ -129,9 +129,11 @@ class VirusTotalClient:
         if status == 404:
             return None
         if status == 401:
-            raise ProviderUnavailableError("VirusTotal rejected the API key (401)")
+            raise ProviderUnavailableError(
+                f"VirusTotal rejected the API key ({status})"
+            )
         if status == 429:
-            raise ProviderUnavailableError("VirusTotal quota exceeded (429)")
+            raise ProviderUnavailableError(f"VirusTotal quota exceeded ({status})")
         if not response.ok:
             raise ProviderError(f"VirusTotal returned HTTP {status}")
 
