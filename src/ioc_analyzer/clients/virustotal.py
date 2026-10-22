@@ -6,6 +6,7 @@ from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 BASE_URL = "https://www.virustotal.com/api/v3"
 DEFAULT_TIMEOUT_SECONDS = 10
 
+# attack kind dict
 ArtifactKind = Literal["ip", "domain", "file"]
 _ENDPOINTS: dict[str, str] = {
     "ip": "ip_addresses",
@@ -128,7 +129,7 @@ class VirusTotalClient:
         if status == 404:
             return None
         if status == 401:
-            raise ProviderUnavailableError("VirusTotal reject the API key (401)")
+            raise ProviderUnavailableError("VirusTotal rejected the API key (401)")
         if status == 429:
             raise ProviderUnavailableError("VirusTotal quota exceeded (429)")
         if not response.ok:
