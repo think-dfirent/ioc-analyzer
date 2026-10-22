@@ -246,7 +246,7 @@ def print_file_result(result):
 
 def query_safely(provider, query, artifact):
     try:
-        return query(artifact)
+        return True, query(artifact)
     except ProviderUnavailableError:
         raise
     except ProviderError as exc:
@@ -258,7 +258,7 @@ def query_safely(provider, query, artifact):
         print_error(f"{artifact}: {provider} unreachable ({exc})")
     except (ValueError, KeyError, TypeError) as exc:
         print_error(f"{artifact}: {provider} unavailable ({exc})")
-    return None
+    return False, None
 
 
 def main(argv=None):
@@ -290,28 +290,31 @@ def main(argv=None):
     failed = False
     vt_enabled = True
     for artifact, kind in dict.fromkeys(indicators):
-        vt = None
+        vt_ok, vt = False, None
         if vt_enabled:
             try:
-                vt = query_safely(
+                vt_ok, vt = query_safely(
                     "VirusTotal", lambda a: vt_client.lookup(a, kind), artifact
                 )
             except ProviderUnavailableError as exc:
                 print_error(f"VirusTotal disabled for the rest of this run: {exc}")
                 vt_enabled = False
-            failed |= vt is None
+        failed |= not vt_ok
+
         if kind == "ip":
-            abuse = query_safely("AbuseIPDB", query_abuse, artifact)
-            failed |= abuse is None
+            abuse_ok, abuse = query_safely("AbuseIPDB", query_abuse, artifact)
+            failed |= not abuse_ok
             result = normalize_ip_result(vt, abuse, artifact)
+        elif not vt_ok:
+            continue
         elif vt is None:
+            print(f"{artifact}: no VirusTotal record (never submitted or seen)")
             continue
         elif kind == "domain":
             result = normalize_domain_result(vt)
         else:
             result = normalize_file_result(vt)
         print_analysis(result)
-    return 1 if failed else 0
 
 
 if __name__ == "__main__":
