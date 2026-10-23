@@ -58,3 +58,10 @@ def test_missing_key_stops_before_any_request(fake_vt, monkeypatch, capsys):
     assert app.main([HASH_A]) == 1
     assert calls == []
     assert "VIRUSTOTAL_API" in capsys.readouterr().err
+
+
+def test_unknown_ip_shows_no_record(fake_vt, monkeypatch, capsys):
+    fake_vt(404)
+    monkeypatch.setattr(app, "query_abuse", lambda artifact: {"artifact": artifact})
+    assert app.main(["8.8.8.8"]) == 0
+    assert "No VirusTotal record" in capsys.readouterr().out

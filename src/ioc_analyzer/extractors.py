@@ -99,7 +99,7 @@ def domain_extraction(text):
 
 _LABEL = r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
 _TLD = r"(?:[a-zA-Z]{2,63}|xn--[a-zA-Z0-9]{2,59})"
-DOMAIN_REGEX = re.compile(rf"^(?:{_LABEL}\.)+{_TLD}$", re.IGNORECASE)
+DOMAIN_REGEX = re.compile(rf"(?:{_LABEL}\.)+{_TLD}", re.IGNORECASE)
 
 
 def is_domain(value: str) -> bool:
