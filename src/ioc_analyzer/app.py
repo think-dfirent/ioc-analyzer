@@ -1,7 +1,5 @@
-import pyperclip, sys, requests, re, os
+import pyperclip, sys, requests, os
 from dotenv import load_dotenv
-from datetime import datetime, timezone
-import ipaddress
 from ioc_analyzer.extractors import (
     ip_extraction,
     domain_extraction,
