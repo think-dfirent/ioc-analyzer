@@ -163,3 +163,15 @@ def test_lookup_404_is_provider_error_not_crash(client, fake_get):
     with pytest.raises(ProviderError, match="404") as info:
         client.lookup("8.8.8.8")
     assert type(info.value) is ProviderError
+
+
+def test_lookup_missing_confidence_is_none(client, fake_get, abuse_payload):
+    del abuse_payload["data"]["abuseConfidenceScore"]
+    fake_get(FakeResponse(200, abuse_payload))
+    assert client.lookup("118.25.6.39")["abuse_confidence"] is None
+
+
+def test_lookup_confidence_zero_stays_zero(client, fake_get, abuse_payload):
+    abuse_payload["data"]["abuseConfidenceScore"] = 0
+    fake_get(FakeResponse(200, abuse_payload))
+    assert client.lookup("118.25.6.39")["abuse_confidence"] == 0

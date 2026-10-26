@@ -3,6 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## How to work with me
+
 - I'm learning software engineering. My goal is understanding, not speed.
 - **During `docs/PLAN.md` work**, Claude Code writes the code (core logic included) and explains it: follow the plan's rules, keep commits small, and write the phase's learning note in `docs/learning/phase-N.md`. I learn from the finished code and the note afterwards.
 - **Outside the plan**, the learning rules apply:
@@ -25,6 +26,7 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - 401/429 = provider unavailable for the rest of the run; stop calling it.
 - stdout is for results only; diagnostics and errors go to stderr.
 - Tests never touch the network.
+- AbuseIPDB key missing → print one warning at startup and run without AbuseIPDB (it only covers IPs).
 
 ## What this is
 

@@ -62,6 +62,18 @@ def test_missing_key_stops_before_any_request(fake_vt, monkeypatch, capsys):
 
 def test_unknown_ip_shows_no_record(fake_vt, monkeypatch, capsys):
     fake_vt(404)
-    monkeypatch.setattr(app, "query_abuse", lambda artifact: {"artifact": artifact})
+    monkeypatch.setenv("ABUSEIPDB_API", "test-key")
+    monkeypatch.setattr(
+        app.AbuseIPDBClient, "lookup", lambda self, artifact: {"artifact": artifact}
+    )
     assert app.main(["8.8.8.8"]) == 0
     assert "No VirusTotal record" in capsys.readouterr().out
+
+
+def test_missing_abuseipdb_key_warns_and_continues(fake_vt, monkeypatch, capsys):
+    fake_vt(404)
+    monkeypatch.delenv("ABUSEIPDB_API", raising=False)
+    assert app.main(["8.8.8.8"]) == 0
+    captured = capsys.readouterr()
+    assert "Continuing without AbuseIPDB" in captured.err
+    assert "No VirusTotal record" in captured.out
