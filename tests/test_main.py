@@ -1,6 +1,7 @@
 import pytest
 from ioc_analyzer import app
 from ioc_analyzer.clients import virustotal
+from ioc_analyzer.clients.errors import ProviderError
 
 HASH_A = "a" * 64
 HASH_B = "b" * 64
@@ -77,3 +78,19 @@ def test_missing_abuseipdb_key_warns_and_continues(fake_vt, monkeypatch, capsys)
     captured = capsys.readouterr()
     assert "Continuing without AbuseIPDB" in captured.err
     assert "No VirusTotal record" in captured.out
+
+
+def test_query_safely_reports_provider_error(capsys):
+    def failing_lookup(artifact):
+        raise ProviderError("(server down)")
+
+    assert app.query_safely("VirusTotal", failing_lookup, "8.8.8.8") == (False, None)
+    assert "VirusTotal failed (server down)" in capsys.readouterr().err
+
+
+def test_query_safely_lets_programming_errors_crash():
+    def buggy_lookup(artifact):
+        raise TypeError("bug in our own code")
+
+    with pytest.raises(TypeError):
+        app.query_safely("VirusTotal", buggy_lookup, "8.8.8.8")

@@ -1,4 +1,4 @@
-import pyperclip, sys, requests, os
+import pyperclip, sys, os
 from dotenv import load_dotenv
 from ioc_analyzer.extractors import (
     ip_extraction,
@@ -205,20 +205,21 @@ def print_file_result(result):
 
 
 def query_safely(provider, query, artifact):
+    """Run one provider lookup and report provider failures instead of crashing
+
+    Return a pair (ok, result):
+    (True, data)
+    (True, None) - provider answered but without record
+    (False, None) - provider failed; return error
+    Any other exception is a bug and crashes on purpose
+    """
     try:
         return True, query(artifact)
     except ProviderUnavailableError:
         raise
     except ProviderError as exc:
-        print_error(f"{artifact}: {provider} failed ({exc})")
-    except requests.HTTPError as exc:
-        status = exc.response.status_code if exc.response is not None else "unknown"
-        print_error(f"{artifact}: {provider} HTTP error {status}")
-    except requests.RequestException as exc:
-        print_error(f"{artifact}: {provider} unreachable ({exc})")
-    except (ValueError, KeyError, TypeError) as exc:
-        print_error(f"{artifact}: {provider} unavailable ({exc})")
-    return False, None
+        print_error(f"{artifact}: {provider} failed {exc}")
+        return False, None
 
 
 def main(argv=None):
