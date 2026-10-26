@@ -1,6 +1,55 @@
 import re, ipaddress
 from urllib.parse import urlsplit
 
+# the non-domain file extensions
+FILE_EXTENSIONS = frozenset(
+    {
+        "exe",
+        "dll",
+        "scr",
+        "msi",
+        "bat",
+        "cmd",
+        "vbs",
+        "js",
+        "jar",
+        "hta",
+        "lnk",
+        "doc",
+        "docx",
+        "docm",
+        "xls",
+        "xlsx",
+        "xlsm",
+        "ppt",
+        "pptx",
+        "pdf",
+        "rtf",
+        "txt",
+        "log",
+        "csv",
+        "json",
+        "xml",
+        "html",
+        "htm",
+        "yaml",
+        "yml",
+        "ini",
+        "cfg",
+        "iso",
+        "img",
+        "rar",
+        "gz",
+        "tar",
+        "eml",
+        "msg",
+        "tmp",
+        "bin",
+        "dat",
+        "sys",
+    }
+)
+
 
 def ip_extraction(text):
     ip_re = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
@@ -49,12 +98,16 @@ def domain_extraction(text):
     return list(dict.fromkeys(domains))
 
 
-def is_domain(value):
-    label = r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
-    return (
-        len(value) <= 253
-        and re.fullmatch(rf"(?:{label}\.)+[a-zA-Z]{{2,63}}", value) is not None
-    )
+_LABEL = r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?"
+_TLD = r"(?:[a-zA-Z]{2,63}|xn--[a-zA-Z0-9]{2,59})"
+DOMAIN_REGEX = re.compile(rf"(?:{_LABEL}\.)+{_TLD}", re.IGNORECASE)
+
+
+def is_domain(value: str) -> bool:
+    if len(value) > 253 or not DOMAIN_REGEX.fullmatch(value):
+        return False
+    tld = value.rsplit(".", 1)[1].lower()
+    return tld not in FILE_EXTENSIONS
 
 
 def hash_extraction(text):

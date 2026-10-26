@@ -11,7 +11,7 @@ def format_timestamp(timestamp):
     )
 
 
-def normalize_ip_result(vt_result, abuse_result, indicator=None):
+def normalize_ip_result(vt_result, abuse_result, indicator=None, vt_status=None):
     vt_result = vt_result or {}
     abuse_result = abuse_result or {}
     vt_stats = vt_result.get("analysis_stats") or {}
@@ -22,6 +22,7 @@ def normalize_ip_result(vt_result, abuse_result, indicator=None):
         or vt_result.get("artifact")
         or abuse_result.get("artifact"),
         "type": "ip",
+        "vt_status": vt_status,
         "virustotal": (
             {
                 "malicious": vt_stats.get("malicious"),

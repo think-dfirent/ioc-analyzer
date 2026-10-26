@@ -1,7 +1,5 @@
-import pyperclip, sys, requests, re, os
+import pyperclip, sys, requests, os
 from dotenv import load_dotenv
-from datetime import datetime, timezone
-import ipaddress
 from ioc_analyzer.extractors import (
     ip_extraction,
     domain_extraction,
@@ -59,10 +57,13 @@ def print_error(message):
     print(color_text(message, "danger", sys.stderr), file=sys.stderr)
 
 
-def print_vt_stats(vt):
+def print_vt_stats(vt, status=None):
     print_section("VirusTotal")
     if vt is None:
-        print(color_text("Unavailable", "warning"))
+        if status == "not_found":
+            print(color_text("No VirusTotal record (never submitted or seen)", "muted"))
+        else:
+            print(color_text("Unavailable", "warning"))
         return
     for label, key in (("Malicious", "malicious"), ("Suspicious", "suspicious")):
         count = vt[key]
@@ -150,7 +151,7 @@ def print_ip_result(result):
     abuse = result["abuseipdb"]
     context = result["network_context"]
 
-    print_vt_stats(vt)
+    print_vt_stats(vt, result.get("vt_status"))
 
     print_section("AbuseIPDB")
     if abuse is None:
@@ -304,7 +305,8 @@ def main(argv=None):
         if kind == "ip":
             abuse_ok, abuse = query_safely("AbuseIPDB", query_abuse, artifact)
             failed |= not abuse_ok
-            result = normalize_ip_result(vt, abuse, artifact)
+            vt_status = "not_found" if vt_ok and vt is None else None
+            result = normalize_ip_result(vt, abuse, artifact, vt_status=vt_status)
         elif not vt_ok:
             continue
         elif vt is None:

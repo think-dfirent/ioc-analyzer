@@ -1,3 +1,4 @@
+import pytest
 from ioc_analyzer.extractors import (
     ip_extraction,
     domain_extraction,
@@ -82,3 +83,15 @@ def test_extract_sha256():
 def test_ignore_invalid_hash():
     test = "These aren't hashes: 1hlo1l3iyh2, 1ol5o6l7oi, h5o7p23920uh52kljh4j3k3"
     assert hash_extraction(test) == []
+
+
+@pytest.mark.parametrize(
+    "filename", ["evil.exe", "report.pdf", "invoice.docx", "Payload.DLL", "notes.txt"]
+)
+def test_filenames_are_not_domain(filename):
+    assert domain_extraction(f"User opened {filename} from email") == []
+
+
+@pytest.mark.parametrize("domain", ["update.zip", "login.mov", "tool.sh"])
+def test_domains_like_tlds_are_kept(domain):
+    assert domain_extraction(f"Beacon to {domain} observed") == [domain]

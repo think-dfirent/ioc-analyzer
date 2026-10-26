@@ -126,6 +126,12 @@ def test_normalize_ip_explicit_indicator_takes_priority():
     assert result["indicator"] == "8.8.8.8"
 
 
+def test_normalize_ip_keeps_vt_status():
+    result = normalize_ip_result(None, None, indicator="8.8.8.8", vt_status="not_found")
+    assert result["vt_status"] == "not_found"
+    assert result["virustotal"] is None
+
+
 def test_normalize_domain_result():
     vt_result = {
         "artifact": "example.com",
