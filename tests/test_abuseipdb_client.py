@@ -93,6 +93,7 @@ def test_lookup_sends_key_ip_and_settings(client, fake_get, abuse_payload):
     calls = fake_get(FakeResponse(200, abuse_payload))
     client.lookup("118.25.6.39")
     assert len(calls) == 1
+    assert calls[0]["url"] == BASE_URL
     assert calls[0]["headers"] == {"Key": "test_key", "Accept": "application/json"}
     assert calls[0]["timeout"] == 5
     assert calls[0]["params"]["maxAgeInDays"] == 90
@@ -140,3 +141,25 @@ def test_abuse_ipdb_returned_an_unexpected_shape_json(fake_get, client):
         ProviderError, match="AbuseIPDB returned JSON with an unexpected shape"
     ):
         client.lookup("8.8.8.8")
+
+
+def test_lookup_without_data_reports_abuseipdb_error(client, fake_get):
+    payload = {
+        "errors": [{"detail": "The ip address must be a valid IPv4 or IPv6 address."}]
+    }
+    fake_get(FakeResponse(200, payload))
+    with pytest.raises(ProviderError, match="valid IPv4"):
+        client.lookup("not-an-ip")
+
+
+def test_lookup_without_data_or_errors_is_provider_error(client, fake_get):
+    fake_get(FakeResponse(200, {}))
+    with pytest.raises(ProviderError, match="no data"):
+        client.lookup("8.8.8.8")
+
+
+def test_lookup_404_is_provider_error_not_crash(client, fake_get):
+    fake_get(FakeResponse(404))
+    with pytest.raises(ProviderError, match="404") as info:
+        client.lookup("8.8.8.8")
+    assert type(info.value) is ProviderError

@@ -9,8 +9,8 @@ DEFAULT_TIMEOUT_SECONDS = 10
 DEFAULT_MAX_AGE_DAYS = 90
 
 
-def parse_abuse(response):
-    data = response.get("data")
+def parse_abuse(data: dict[str, Any]) -> dict[str, Any]:
+    """Turn "data" object to a flat dict"""
     result = {
         "artifact": data.get("ipAddress"),
         "source": "AbuseIPDB",
@@ -28,6 +28,13 @@ def parse_abuse(response):
     return result
 
 
+def _error_detail(payload: dict[str, Any]) -> str:
+    errors = payload.get("errors") or []
+    if errors and isinstance(errors[0], dict):
+        return errors[0].get("detail") or "no error detail given"
+    return "no data and no error details in response"
+
+
 class AbuseIPDBClient:
     def __init__(
         self,
@@ -37,7 +44,7 @@ class AbuseIPDBClient:
     ) -> None:
         if not api_key:
             raise ValueError(
-                "AbuseIPDB is missing. Set ABUSEIPDB_API in your .env file"
+                "AbuseIPDB API key is missing. Set ABUSEIPDB_API in your .env file"
             )
         if not 1 <= max_age_days <= 365:
             raise ValueError(
@@ -47,26 +54,23 @@ class AbuseIPDBClient:
         self._timeout = timeout
         self._max_age_days = max_age_days
 
-    def lookup(self, artifact):
-        url = f"{BASE_URL}/{artifact}"
-        payload = self._fetch(url, artifact)
-        try:
-            return parse_abuse(payload)
-        except KeyError as exc:
-            raise ProviderError(f"AbuseIPDB response is missing field {exc}") from exc
+    def lookup(self, artifact: str) -> dict[str, Any]:
+        payload = self._fetch(artifact)
+        data = payload.get("data")
+        if not isinstance(data, dict):
+            raise ProviderError(f"AbuseIPDB returned no data {_error_detail(payload)}")
+        return parse_abuse(data)
 
-    def _fetch(self, url, artifact) -> dict[str, Any] | None:
+    def _fetch(self, artifact: str) -> dict[str, Any]:
         headers = {"Key": self._api_key, "Accept": "application/json"}
         params = {"ipAddress": artifact, "maxAgeInDays": self._max_age_days}
         try:
             response = requests.get(
-                url, headers=headers, params=params, timeout=self._timeout
+                BASE_URL, headers=headers, params=params, timeout=self._timeout
             )
         except requests.RequestException as exc:
             raise ProviderError(f"AbuseIPDB unreachable: {exc}") from exc
         status = response.status_code
-        if status == 404:
-            return None
         if status == 401:
             raise ProviderUnavailableError(f"AbuseIPDB rejected the API key {status}")
         if status == 429:
