@@ -74,9 +74,7 @@ class AbuseIPDBClient:
         if status == 401:
             raise ProviderUnavailableError(f"AbuseIPDB rejected the API key {status}")
         if status == 429:
-            raise ProviderUnavailableError(
-                f"AbuseIPDB Daily rate limit of 1000 requests exceeded for this endpoint. See headers for additional details {status}"
-            )
+            raise ProviderUnavailableError(f"AbuseIPDB quota exceeded {status}")
         if not response.ok:
             raise ProviderError(f"AbuseIPDB returned HTTP {status}")
 
