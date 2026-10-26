@@ -11,8 +11,8 @@ def test_virustotal_client_missing_api_key(api_key):
         VirusTotalClient(api_key=api_key)
 
 
-def virustotal_accepts_api_key(api_key):
-    client = VirusTotalClient(api_key=api_key)
+def test_virustotal_accepts_api_key():
+    client = VirusTotalClient(api_key="test_key")
     assert client is not None
 
 

@@ -1,4 +1,4 @@
-import pyperclip, sys, requests, os
+import pyperclip, sys, os
 from dotenv import load_dotenv
 from ioc_analyzer.extractors import (
     ip_extraction,
@@ -13,7 +13,7 @@ from ioc_analyzer.normalization import (
 from ioc_analyzer.clients.virustotal import (
     VirusTotalClient,
 )
-
+from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 
 COLORS = {
@@ -81,47 +81,6 @@ def print_vt_stats(vt, status=None):
     reputation = vt["reputation"]
     tone = "warning" if reputation is None else "danger" if reputation < 0 else "muted"
     print(f"Reputation     : {color_text(reputation, tone)}")
-
-
-def get_json(url, headers, params=None):
-    response = requests.get(url=url, headers=headers, params=params, timeout=10)
-    response.raise_for_status()
-    return response.json()
-
-
-def query_abuse(artifact):
-    abuse_api = os.getenv("ABUSEIPDB_API")
-    if not abuse_api:
-        raise ValueError("AbuseIPDB's API is not configured!")
-    # abuseipdb query
-    abuse_url = "https://api.abuseipdb.com/api/v2/check"
-    abuse_headers = {"Accept": "application/json", "Key": abuse_api}
-    querystring = {"ipAddress": artifact, "maxAgeInDays": "90"}
-    response = get_json(url=abuse_url, headers=abuse_headers, params=querystring)
-
-    data = response.get("data")
-    if data is None:
-        errors = response.get("errors") or []
-        if errors:
-            detail = errors[0].get("detail", "no error detail given")
-        else:
-            detail = "no data and no error details in response"
-        raise ProviderError(f"AbuseIPDB: {detail}")
-    result = {
-        "artifact": data.get("ipAddress"),
-        "source": "AbuseIPDB",
-        "abuse_confidence": data.get("abuseConfidenceScore"),
-        "total_reports": data.get("totalReports"),
-        "distinct_reporters": data.get("numDistinctUsers"),
-        "last_reported_at": data.get("lastReportedAt"),
-        "country": data.get("countryCode"),
-        "isp": data.get("isp"),
-        "usage_type": data.get("usageType"),
-        "domain": data.get("domain"),
-        "hostnames": data.get("hostnames"),
-        "is_tor": data.get("isTor"),
-    }
-    return result
 
 
 # print dispatcher
@@ -246,20 +205,21 @@ def print_file_result(result):
 
 
 def query_safely(provider, query, artifact):
+    """Run one provider lookup and report provider failures instead of crashing
+
+    Return a pair (ok, result):
+    (True, data)
+    (True, None) - provider answered but without record
+    (False, None) - provider failed; return error
+    Any other exception is a bug and crashes on purpose
+    """
     try:
         return True, query(artifact)
     except ProviderUnavailableError:
         raise
     except ProviderError as exc:
-        print_error(f"{artifact}: {provider} failed ({exc})")
-    except requests.HTTPError as exc:
-        status = exc.response.status_code if exc.response is not None else "unknown"
-        print_error(f"{artifact}: {provider} HTTP error {status}")
-    except requests.RequestException as exc:
-        print_error(f"{artifact}: {provider} unreachable ({exc})")
-    except (ValueError, KeyError, TypeError) as exc:
-        print_error(f"{artifact}: {provider} unavailable ({exc})")
-    return False, None
+        print_error(f"{artifact}: {provider} failed {exc}")
+        return False, None
 
 
 def main(argv=None):
@@ -269,6 +229,12 @@ def main(argv=None):
     except ValueError as exc:
         print_error(str(exc))
         return 1
+    abuse_client = None
+    try:
+        abuse_client = AbuseIPDBClient(api_key=os.getenv("ABUSEIPDB_API"))
+    except ValueError as exc:
+        print_error(f"{exc} Continuing without AbuseIPDB")
+
     argv = sys.argv[1:] if argv is None else argv
     if argv:
         text = " ".join(argv)
@@ -290,6 +256,7 @@ def main(argv=None):
 
     failed = False
     vt_enabled = True
+    abuse_enabled = abuse_client is not None
     for artifact, kind in dict.fromkeys(indicators):
         vt_ok, vt = False, None
         if vt_enabled:
@@ -303,8 +270,17 @@ def main(argv=None):
         failed |= not vt_ok
 
         if kind == "ip":
-            abuse_ok, abuse = query_safely("AbuseIPDB", query_abuse, artifact)
-            failed |= not abuse_ok
+            abuse_ok, abuse = False, None
+            if abuse_enabled:
+                try:
+                    abuse_ok, abuse = query_safely(
+                        "AbuseIPDB", abuse_client.lookup, artifact
+                    )
+                except ProviderUnavailableError as exc:
+                    print_error(f"AbuseIPDB disabled for the rest of this run: {exc}")
+                    abuse_enabled = False
+            if abuse_client is not None:
+                failed |= not abuse_ok
             vt_status = "not_found" if vt_ok and vt is None else None
             result = normalize_ip_result(vt, abuse, artifact, vt_status=vt_status)
         elif not vt_ok:
