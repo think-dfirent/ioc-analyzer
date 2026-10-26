@@ -1,6 +1,7 @@
 import re, ipaddress
 from urllib.parse import urlsplit
 
+# the non-domain file extensions
 FILE_EXTENSIONS = frozenset(
     {
         "exe",

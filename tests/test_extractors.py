@@ -93,5 +93,5 @@ def test_filenames_are_not_domain(filename):
 
 
 @pytest.mark.parametrize("domain", ["update.zip", "login.mov", "tool.sh"])
-def test_domains_like_tlds(domain):
+def test_domains_like_tlds_are_kept(domain):
     assert domain_extraction(f"Beacon to {domain} observed") == [domain]
