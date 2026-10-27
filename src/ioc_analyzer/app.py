@@ -218,7 +218,7 @@ def query_safely(provider, query, artifact):
     except ProviderUnavailableError:
         raise
     except ProviderError as exc:
-        print_error(f"{artifact}: {provider} failed {exc}")
+        print_error(f"{artifact}: {provider} failed: {exc}")
         return False, None
 
 

@@ -82,10 +82,10 @@ def test_missing_abuseipdb_key_warns_and_continues(fake_vt, monkeypatch, capsys)
 
 def test_query_safely_reports_provider_error(capsys):
     def failing_lookup(artifact):
-        raise ProviderError("(server down)")
+        raise ProviderError("server down")
 
     assert app.query_safely("VirusTotal", failing_lookup, "8.8.8.8") == (False, None)
-    assert "VirusTotal failed (server down)" in capsys.readouterr().err
+    assert "VirusTotal failed: server down" in capsys.readouterr().err
 
 
 def test_query_safely_lets_programming_errors_crash():
