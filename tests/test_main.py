@@ -1,6 +1,6 @@
 import pytest
 from ioc_analyzer import app
-from ioc_analyzer.clients import virustotal
+from ioc_analyzer.clients import virustotal, abuseipdb
 from ioc_analyzer.clients.errors import ProviderError
 
 HASH_A = "a" * 64
@@ -94,3 +94,38 @@ def test_query_safely_lets_programming_errors_crash():
 
     with pytest.raises(TypeError):
         app.query_safely("VirusTotal", buggy_lookup, "8.8.8.8")
+
+
+@pytest.fixture
+def fake_both(monkeypatch):
+    "Fake HTTP for providers: VT answers 404, AbuseIPDB answers abuse_status"
+    monkeypatch.setattr(app, "load_dotenv", lambda: None)
+    monkeypatch.setenv("VIRUSTOTAL_API", "test-key")
+    monkeypatch.setenv("ABUSEIPDB_API", "test-key")
+    abuse_calls = []
+
+    def answer_with(abuse_status):
+        def fake_get(url, **kwargs):
+            if url == abuseipdb.BASE_URL:
+                abuse_calls.append(kwargs["params"]["ipAddress"])
+                return FakeResponse(abuse_status)
+            return FakeResponse(404)
+
+        monkeypatch.setattr(abuseipdb.requests, "get", fake_get)
+        return abuse_calls
+
+    return answer_with
+
+
+def test_rejected_abuseipdb_key_stops_further_abuseipdb_calls(fake_both):
+    abuse_calls = fake_both(401)
+    assert app.main(["8.8.8.8", "1.1.1.1"]) == 1  # overall exit code is 1
+    assert abuse_calls == ["8.8.8.8"]  # AbuseIPDB was only called once for 8.8.8.8
+
+
+def test_abuseipdb_server_error_fails_run_but_keeps_vt_result(fake_both, capsys):
+    fake_both(500)
+    assert app.main(["8.8.8.8"]) == 1
+    captured = capsys.readouterr()
+    assert "No VirusTotal record" in captured.out
+    assert "AbuseIPDB failed: AbuseIPDB returned HTTP 500" in captured.err
