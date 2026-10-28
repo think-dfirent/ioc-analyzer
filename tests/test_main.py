@@ -98,7 +98,9 @@ def test_query_safely_lets_programming_errors_crash():
 
 @pytest.fixture
 def fake_both(monkeypatch):
-    "Fake HTTP for providers: VT answers 404, AbuseIPDB answers abuse_status"
+    """Fake HTTP for providers: VT answers 404, AbuseIPDB answers abuse_status
+    Both clients call the same requests.get, so the fake routes on the URL"""
+
     monkeypatch.setattr(app, "load_dotenv", lambda: None)
     monkeypatch.setenv("VIRUSTOTAL_API", "test-key")
     monkeypatch.setenv("ABUSEIPDB_API", "test-key")
