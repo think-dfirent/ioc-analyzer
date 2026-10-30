@@ -15,7 +15,29 @@ from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extra
 from ioc_analyzer.report import print_analysis, print_error
 
 
-def main(argv=None):
+def build_parser() -> argparse.ArgumentParser:
+    """Describe the command line in one place: what a user may type and what it means.
+
+    A function rather than a module-level object, so every call (and every test)
+    gets a fresh parser with no state left over from a previous run.
+    """
+    parser = argparse.ArgumentParser(
+        prog="ioc-analyzer",
+        description=(
+            "Extract IOCs (public IPv4, domains, MD5/SHA1/SHA256) from text and enrich them with VirusTotal and AbuseIPDB."
+        ),
+    )
+    parser.add_argument(
+        "text",
+        nargs="*",
+        help="text to scan; several words are joined with spaces. With no text, the clipboard is read.",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    # Parse first: --help and usage errors must work without API keys or network.
+    args = build_parser().parse_args(argv)
     load_dotenv()
     try:
         vt_client = VirusTotalClient(api_key=os.getenv("VIRUSTOTAL_API"))
@@ -28,9 +50,8 @@ def main(argv=None):
     except ValueError as exc:
         print_error(f"{exc} Continuing without AbuseIPDB")
 
-    argv = sys.argv[1:] if argv is None else argv
-    if argv:
-        text = " ".join(argv)
+    if args.text:
+        text = " ".join(args.text)
     else:
         try:
             text = pyperclip.paste()

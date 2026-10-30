@@ -119,3 +119,25 @@ def test_abuseipdb_server_error_fails_run_but_keeps_vt_result(fake_both, capsys)
 
 def test_app_module_is_a_thin_wrapper_around_cli():
     assert app.main is cli.main
+
+
+def test_help_works_without_api_keys(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"])
+
+    assert exc.value.code == 0
+    assert "usage: ioc-analyzer" in capsys.readouterr().out
+
+
+def test_unknown_option_is_a_usage_error(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--bogus"])
+
+    assert exc.value.code == 2
+    assert "usage: ioc-analyzer" in capsys.readouterr().err
