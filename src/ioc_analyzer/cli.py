@@ -16,6 +16,7 @@ from ioc_analyzer.clients.virustotal import VirusTotalClient
 from ioc_analyzer.enrich import enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
 from ioc_analyzer.report import print_analysis, print_error
+from ioc_analyzer.report import print_analysis, print_error, set_color
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,6 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="plain text output, no ANSI colors (the NO_COLOR variable does the same)",
     )
     source = parser.add_mutually_exclusive_group()
     source.add_argument(
@@ -82,6 +88,8 @@ def read_text(args: argparse.Namespace) -> str:
 def main(argv: list[str] | None = None) -> int:
     # Parse first: --help and usage errors must work without API keys or network.
     args = build_parser().parse_args(argv)
+    # Set every run, both ways, so one run's choice never leaks into the next.
+    set_color(not args.no_color)
     load_dotenv()
     try:
         vt_client = VirusTotalClient(api_key=os.getenv("VIRUSTOTAL_API"))

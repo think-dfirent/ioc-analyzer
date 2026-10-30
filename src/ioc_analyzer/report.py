@@ -13,11 +13,21 @@ COLORS = {
     "muted": "90",
 }
 
+# The CLI sets this once per run from --no-color. A module-level setting is enough for a one-shot CLI
+# passing a flag through every printer would touch every function here for no extra safety
+_color_enabled = True
+
+
+def set_color(enabled: bool) -> None:
+    """Turn colored output on or off for this run (on still needs a terminal)."""
+    global _color_enabled
+    _color_enabled = enabled
+
 
 def color_text(value, color, stream=None):
     stream = sys.stdout if stream is None else stream
     text = str(value)
-    if "NO_COLOR" in os.environ or not stream.isatty():
+    if not _color_enabled or "NO_COLOR" in os.environ or not stream.isatty():
         return text
     if os.name == "nt":
         # Enable ANSI escapes on Windows consoles; fall back to plain text.

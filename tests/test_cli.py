@@ -217,3 +217,14 @@ def test_version_matches_pyproject():
     pyproject = Path(__file__).parents[1] / "pyproject.toml"
     with pyproject.open("rb") as f:
         assert tomllib.load(f)["project"]["version"] == __version__
+
+
+def test_no_color_flag_turns_color_off_for_that_run_only(fake_vt, monkeypatch):
+    fake_vt(404)
+    calls = []
+    monkeypatch.setattr(cli, "set_color", calls.append)
+
+    cli.main(["--no-color", HASH_A])
+    cli.main([HASH_A])
+
+    assert calls == [False, True]

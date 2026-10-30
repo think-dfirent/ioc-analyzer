@@ -1,12 +1,14 @@
 """Display rules from CLAUDE.md Decisions: missing provider data shows as
 "Unknown"/"Unavailable", never as None, and a real 0 stays 0."""
 
+import pytest
 from ioc_analyzer.normalization import (
     normalize_domain_result,
     normalize_file_result,
     normalize_ip_result,
 )
-from ioc_analyzer.report import print_analysis, show
+from ioc_analyzer import report
+from ioc_analyzer.report import color_text, print_analysis, set_color, show
 
 
 def test_show_keeps_zero_and_hides_missing():
@@ -55,3 +57,31 @@ def test_vt_missing_count_shows_unknown(capsys):
     out = capsys.readouterr().out
     assert "Malicious     : Unknown" in out
     assert "Unavailable" not in out
+
+
+class FakeTerminal:
+    def isatty(self):
+        return True
+
+
+@pytest.fixture
+def terminal(monkeypatch):
+    # Test our on/off rule, not Windows console setup, so pretend to be POSIX.
+    monkeypatch.setattr(report.os, "name", "posix")
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(report, "_color_enabled", True)  # restored after each test
+    return FakeTerminal()
+
+
+def test_terminal_gets_color_by_default(terminal):
+    assert color_text("x", "danger", stream=terminal) == "\033[1;31mx\033[0m"
+
+
+def test_set_color_false_gives_plain_text(terminal):
+    set_color(False)
+    assert color_text("x", "danger", stream=terminal) == "x"
+
+
+def test_no_color_variable_gives_plain_text(terminal, monkeypatch):
+    monkeypatch.setenv("NO_COLOR", "1")
+    assert color_text("x", "danger", stream=terminal) == "x"
