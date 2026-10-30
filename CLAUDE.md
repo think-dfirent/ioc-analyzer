@@ -28,6 +28,12 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - Tests never touch the network.
 - AbuseIPDB key missing → print one warning at startup and run without AbuseIPDB (it only covers IPs).
 
+- CLI input: text, `-file` and (stdin) are mutually exclusive; giving more than one is a usage error (exit 2).
+- Exit codes: 0 = every lookup answered (404 counts as an answer; no IOCs found counts too), 1 = some lookup failed (results may be partial), 2 = usage/config error (bad args, missing VT key, unreadable file or clipboard).
+- `-json`: missing values are `null`, never "Unknown" (that is display-only, in report.py); each provider has a `status`: ok / not_found / unavailable / error.
+- `-json` output has no colors and nothing but JSON on stdout; warnings go to stderr.
+- Version lives in `ioc_analyzer/__init__.py` (`__version__`); keep pyproject.toml in sync by hand until Phase 7 makes it the single source.
+
 ## What this is
 
 A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) out of free text and looks them up on VirusTotal and AbuseIPDB, then prints a colored report per indicator.
