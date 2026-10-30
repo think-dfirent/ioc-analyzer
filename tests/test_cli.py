@@ -1,8 +1,10 @@
 import io
+import tomllib
+from pathlib import Path
 
 import pytest
 
-from ioc_analyzer import app, cli
+from ioc_analyzer import __version__, app, cli
 from ioc_analyzer.clients import abuseipdb, virustotal
 
 HASH_A = "a" * 64
@@ -197,3 +199,21 @@ def test_clipboard_failure_exits_2(fake_vt, monkeypatch, capsys):
 
     assert cli.main([]) == 2
     assert "Cannot read clipboard" in capsys.readouterr().err
+
+
+def test_version_prints_name_and_version_without_api_keys(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--version"])
+
+    assert exc.value.code == 0
+    assert capsys.readouterr().out == f"ioc-analyzer {__version__}\n"
+
+
+def test_version_matches_pyproject():
+    # Two copies of the version exist until Phase 7; this test stops them drifting apart.
+    pyproject = Path(__file__).parents[1] / "pyproject.toml"
+    with pyproject.open("rb") as f:
+        assert tomllib.load(f)["project"]["version"] == __version__

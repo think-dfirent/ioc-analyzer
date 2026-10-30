@@ -10,6 +10,7 @@ from pathlib import Path
 import pyperclip
 from dotenv import load_dotenv
 
+from ioc_analyzer import __version__
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.virustotal import VirusTotalClient
 from ioc_analyzer.enrich import enrich
@@ -28,6 +29,9 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Extract IOCs (public IPv4, domains, MD5/SHA1/SHA256) from text and enrich them with VirusTotal and AbuseIPDB."
         ),
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {__version__}"
     )
     source = parser.add_mutually_exclusive_group()
     source.add_argument(
