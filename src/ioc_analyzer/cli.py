@@ -1,5 +1,5 @@
 """Command-line entry point: read input, extract IOCs, enrich, print, return an exit code
-This is the only module that talks to the outside world (environemnt, argv, clipboard, stdout, stderr)
+This is the only module that talks to the outside world (environment, argv, clipboard, stdout, stderr)
 Phase 4 replaces the argv with argparse
 """
 

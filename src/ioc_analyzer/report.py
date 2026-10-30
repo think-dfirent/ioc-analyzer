@@ -42,8 +42,11 @@ UNKNOWN = "Unknown"
 
 def show(value, template="{}"):
     """Format one field for display, or "Unknown" when the provider sent no value.
-    Only None and "" count as missing. 0 is real data.
+
+    Only None and "" count as missing. 0 is real data ("0 reports" means the
+    provider checked and found nothing) and must never turn into "Unknown".
     """
+
     if value is None or value == "":
         return UNKNOWN
     return template.format(value)
