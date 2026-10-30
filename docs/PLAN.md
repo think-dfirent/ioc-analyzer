@@ -124,21 +124,27 @@ Use `argparse` (standard library, no new dependency):
 # Phase N — <name>
 
 ## What changed (plain words)
+
 2–4 sentences.
 
 ## Why
+
 The problem this solves, ideally as a SOC scenario ("an analyst pastes 10 IOCs and...").
 
 ## Key decisions and trade-offs
+
 - Decision → what we chose, what we rejected, and why.
 
 ## Python/engineering concepts used
+
 - Concept → one-line plain explanation → where it appears (file:function).
 
 ## Read in this order
+
 1. file:function — what to look for
 2. ...
 
 ## Check yourself
+
 3–5 questions the owner should be able to answer after reading (no answers given).
 ```

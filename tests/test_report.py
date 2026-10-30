@@ -2,12 +2,13 @@
 "Unknown"/"Unavailable", never as None, and a real 0 stays 0."""
 
 import pytest
+
+from ioc_analyzer import report
 from ioc_analyzer.normalization import (
     normalize_domain_result,
     normalize_file_result,
     normalize_ip_result,
 )
-from ioc_analyzer import report
 from ioc_analyzer.report import color_text, print_analysis, set_color, show
 
 

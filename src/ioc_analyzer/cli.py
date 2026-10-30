@@ -15,7 +15,6 @@ from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.virustotal import VirusTotalClient
 from ioc_analyzer.enrich import enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
-from ioc_analyzer.report import print_analysis, print_error
 from ioc_analyzer.report import print_analysis, print_error, set_color
 
 
