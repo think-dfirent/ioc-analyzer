@@ -1,4 +1,7 @@
-import pytest, io
+import io
+
+import pytest
+
 from ioc_analyzer import app, cli
 from ioc_analyzer.clients import abuseipdb, virustotal
 

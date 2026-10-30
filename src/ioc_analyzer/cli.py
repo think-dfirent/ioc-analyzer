@@ -3,8 +3,10 @@ This is the only module that talks to the outside world (environment, argv, clip
 """
 
 import argparse
-import os, sys
+import os
+import sys
 from pathlib import Path
+
 import pyperclip
 from dotenv import load_dotenv
 
