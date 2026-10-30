@@ -36,38 +36,44 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 
 ## What this is
 
-A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) out of free text and looks them up on VirusTotal and AbuseIPDB, then prints a colored report per indicator.
+A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) out of free text, looks them up on VirusTotal and AbuseIPDB, and prints a report per indicator (colored text, or JSON with `--json`). User-facing usage, the JSON shape and exit codes are in `README.md`.
 
 ## Commands
 
-The project uses a local virtualenv at `venv/` (Windows layout) with the package installed in editable mode (`pip install -e .`). Tests import `ioc_analyzer` as an installed package, so the editable install is required; there is no pytest config or `sys.path` hack.
+No packaging yet (Phase 7): dependencies are installed into `venv/` by hand and `src` is put on the path.
 
 ```powershell
-venv\Scripts\python.exe -m pip install -e . pytest      # setup
-venv\Scripts\python.exe -m pytest                       # all tests
-venv\Scripts\python.exe -m pytest tests/test_extractors.py::test_extract_domain   # single test
-venv\Scripts\python.exe -m ioc_analyzer.app "text containing 8.8.8.8 or example.com"  # run
+$env:PYTHONPATH = "src"
+pytest -q                                            # all tests
+pytest tests/test_cli.py::test_no_iocs_is_not_a_failure   # one test
+ruff check src tests                                 # lint (see note on tomllib below)
+python -m ioc_analyzer.app --help                    # run
 ```
 
-With no arguments, `app.main()` reads the input text from the clipboard (`pyperclip`). There is no console-script entry point yet; run it as a module. No linter/formatter is configured yet (the code style matches Black).
+API keys come from `.env` via `python-dotenv`: `VIRUSTOTAL_API` (required) and `ABUSEIPDB_API` (optional). `.env` is gitignored.
 
-API keys are read from `.env` via `python-dotenv`: `VIRUSTOTAL_API` and `ABUSEIPDB_API`. `.env` is gitignored.
+Known lint noise: ruff flags the import order in `tests/test_cli.py` (I001) because `pyproject.toml` has no `requires-python`, so ruff treats `tomllib` as third-party. Phase 7 fixes this; don't "fix" the import order by hand.
 
 ## Architecture
 
-The data flows through three stages:
+```
+cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
+  │                              │
+  └── report.py (text) ◄─────────┤
+  └── serialize.py (JSON) ◄──────┘
+```
 
-1. **Extraction** (`extractors.py`): regex-based `ip_extraction` (keeps only `ipaddress.is_global` addresses), `domain_extraction`, `hash_extraction`, and `is_domain`. `domain_extraction` first consumes full URLs (with and without a scheme) and keeps only their hostname, so URL paths and query strings never get parsed as domains; the remaining text is then scanned for bare domains.
-2. **Provider lookup + parse**:
-   - VirusTotal lives in `clients/virustotal.py`. `VirusTotalClient` checks the key in its constructor; `lookup(artifact, kind)` builds the URL with `build_url` (endpoint chosen by `kind`: `ip`/`domain`/`file`), fetches it, and parses it with the matching `parse_vt_ip/domain/file`. It returns `None` on 404, raises `ProviderUnavailableError` on 401/429, and `ProviderError` on other HTTP errors, network errors, non-JSON bodies and missing required fields.
-   - AbuseIPDB still lives in `app.py`: `query_abuse` calls `get_json` (raw `requests`). `clients/abuseipdb.py` is an empty placeholder; moving it there is Phase 2 of the plan.
-   - `clients/errors.py` holds the shared exceptions. `ProviderUnavailableError` is a subclass of `ProviderError`.
-   - The parsers turn raw API JSON into flat, provider-shaped dicts (e.g. `analysis_stats`, `as_owner`, `abuse_confidence`).
-3. **Normalization** (`normalization.py`): `normalize_ip_result(vt, abuse, indicator)`, `normalize_domain_result(vt)`, and `normalize_file_result(vt)` merge provider dicts into one display-shaped dict with `indicator`, `type` (`ip`/`domain`/`file`) and sections such as `virustotal`, `network_context`, `domain_context`, `timeline`, `sandbox`. The `print_*_result` functions in `app.py` read exactly these keys, so a key rename in normalization means updating the printer too.
-
-Failure handling: `query_safely` wraps each provider call and returns `(ok, value)`. It prints a stderr message and returns `(False, None)` for `ProviderError`, `requests` errors and `ValueError`/`KeyError`/`TypeError`, but re-raises `ProviderUnavailableError`, which `main` catches to stop calling VirusTotal for the rest of the run. `normalize_ip_result` tolerates either provider being `None` (the section becomes `None`, and context fields fall back from VT to AbuseIPDB). A domain or file with no VT record (404) prints "no VirusTotal record" and is not a failure; one whose VT lookup failed is skipped. `main` returns exit code 1 if the VT key is missing, no IOCs were found, or any lookup failed, and 0 otherwise.
+- **`cli.py`** is the only module that touches the outside world: argv (`build_parser`), input (`read_text`: `--file`, `-` for stdin, text, clipboard), `.env`, logging setup (`configure_logging`), stdout/stderr and the exit code. `app.py` is a thin wrapper kept so `python -m ioc_analyzer.app` keeps working until Phase 7 adds a console script.
+- **`extractors.py`**: regex-based `ip_extraction` (keeps only `ipaddress.is_global`), `domain_extraction` (consumes full URLs first and keeps only the hostname), `hash_extraction`.
+- **`enrich.py`**: `enrich(indicators, vt_client, abuse_client)` returns one frozen `EnrichmentResult` per unique indicator. It holds `vt_status`/`abuse_status` (`ok`/`not_found`/`unavailable`/`error`; `abuse_status` is `None` for non-IPs), `report` and `errors`. It never prints or exits. Clients are typed as Protocols (`VTLookup`, `IPLookup`), so tests pass fakes.
+- **`clients/`**: `VirusTotalClient.lookup(artifact, kind)` and `AbuseIPDBClient.lookup(artifact)`. Both check the key in the constructor (`ValueError`), and raise `ProviderUnavailableError` on 401/429 and `ProviderError` on other failures (`clients/errors.py`). VirusTotal returns `None` on 404.
+- **`normalization.py`**: merges provider dicts into one report dict per indicator (`virustotal`, `network_context`, `domain_context`, `file_context`, …). These keys are read by `report.py` **and are public in `--json` output**, so renaming one is a breaking change.
+- **`report.py`**: terminal text. `show()` turns `None` into "Unknown" (display only). `set_color()` is set once per run by the CLI.
+- **`serialize.py`**: `to_json(results)` returns `{"results": [...]}` with `null` for missing values.
 
 ## Testing notes
 
-- All tests are offline. HTTP is faked with `monkeypatch`: `tests/test_virustotal_client.py` replaces `requests.get`, `tests/test_main.py` fakes the VT client's HTTP to test `main()` exit codes, and `tests/test_abuseipdb.py` replaces `app.get_json` to test `query_abuse`.
-- The other tests are pure unit tests on extractors, VT parsers and normalization, using hand-built dicts.
+- All tests are offline. HTTP is faked with `monkeypatch` on `requests.get` inside the client modules (`tests/test_virustotal_client.py`, `tests/test_abuseipdb_client.py`); `tests/test_cli.py` fakes HTTP to test `main()` end to end (flags, input sources, exit codes, stdout purity).
+- `tests/test_enrich.py` uses `FakeClient` objects instead of HTTP; `tests/test_report.py` and `tests/test_serialize.py` build results by hand.
+- argparse calls `sys.exit()` for `--help`, `--version` and usage errors, so those tests use `pytest.raises(SystemExit)` and check `.code`.
+- Module-level settings (`report._color_enabled`, the `ioc_analyzer` logger level) are set by `main()` on every run, both ways, so one test's flags can't leak into the next.
