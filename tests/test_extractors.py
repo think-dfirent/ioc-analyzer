@@ -1,9 +1,10 @@
 import pytest
+
 from ioc_analyzer.extractors import (
-    ip_extraction,
     domain_extraction,
-    is_domain,
     hash_extraction,
+    ip_extraction,
+    is_domain,
 )
 
 

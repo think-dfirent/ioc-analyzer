@@ -1,8 +1,9 @@
 import pytest
 import requests
-from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
+
 from ioc_analyzer.clients import abuseipdb
-from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient, BASE_URL
+from ioc_analyzer.clients.abuseipdb import BASE_URL, AbuseIPDBClient
+from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 
 
 @pytest.mark.parametrize("api_key", ["", None])

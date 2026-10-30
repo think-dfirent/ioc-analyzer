@@ -1,6 +1,12 @@
+import io
+import json
+import tomllib
+from pathlib import Path
+
 import pytest
-from ioc_analyzer import app, cli
-from ioc_analyzer.clients import virustotal, abuseipdb
+
+from ioc_analyzer import __version__, app, cli
+from ioc_analyzer.clients import abuseipdb, virustotal
 
 HASH_A = "a" * 64
 HASH_B = "b" * 64
@@ -55,7 +61,7 @@ def test_rejected_key_stops_further_vt_calls(fake_vt):
 def test_missing_key_stops_before_any_request(fake_vt, monkeypatch, capsys):
     calls = fake_vt(200)
     monkeypatch.delenv("VIRUSTOTAL_API")
-    assert cli.main([HASH_A]) == 1
+    assert cli.main([HASH_A]) == 2
     assert calls == []
     assert "VIRUSTOTAL_API" in capsys.readouterr().err
 
@@ -118,3 +124,156 @@ def test_abuseipdb_server_error_fails_run_but_keeps_vt_result(fake_both, capsys)
 
 def test_app_module_is_a_thin_wrapper_around_cli():
     assert app.main is cli.main
+
+
+def test_help_works_without_api_keys(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--help"])
+
+    assert exc.value.code == 0
+    assert "usage: ioc-analyzer" in capsys.readouterr().out
+
+
+def test_unknown_option_is_a_usage_error(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--bogus"])
+
+    assert exc.value.code == 2
+    assert "usage: ioc-analyzer" in capsys.readouterr().err
+
+
+def test_file_input_is_scanned(fake_vt, tmp_path, capsys):
+    fake_vt(404)
+    alert = tmp_path / "alert.txt"
+    alert.write_text(f"EDR alert, sha256={HASH_A}", encoding="utf-8")
+
+    assert cli.main(["--file", str(alert)]) == 0
+    assert "no VirusTotal record" in capsys.readouterr().out
+
+
+def test_dash_reads_stdin(fake_vt, monkeypatch, capsys):
+    fake_vt(404)
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"hash {HASH_A}\n"))
+
+    assert cli.main(["-"]) == 0
+    assert "no VirusTotal record" in capsys.readouterr().out
+
+
+def test_text_and_file_together_is_a_usage_error(fake_vt, capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main([HASH_A, "--file", "alert.txt"])
+
+    assert exc.value.code == 2
+    assert "not allowed with" in capsys.readouterr().err
+
+
+def test_missing_file_exits_2_before_any_lookup(fake_vt, tmp_path, capsys):
+    calls = fake_vt(200)
+
+    assert cli.main(["--file", str(tmp_path / "missing.txt")]) == 2
+    assert calls == []
+    assert "Cannot read" in capsys.readouterr().err
+
+
+def test_non_utf8_file_exits_2_with_a_hint(fake_vt, tmp_path, capsys):
+    fake_vt(200)
+    alert = tmp_path / "alert.txt"
+    alert.write_text(HASH_A, encoding="utf-16")  # what PowerShell 5.1 '>' produces
+
+    assert cli.main(["--file", str(alert)]) == 2
+    assert "not UTF-8" in capsys.readouterr().err
+
+
+def test_clipboard_failure_exits_2(fake_vt, monkeypatch, capsys):
+    fake_vt(200)
+
+    def broken_paste():
+        raise cli.pyperclip.PyperclipException("no clipboard mechanism")
+
+    monkeypatch.setattr(cli.pyperclip, "paste", broken_paste)
+
+    assert cli.main([]) == 2
+    assert "Cannot read clipboard" in capsys.readouterr().err
+
+
+def test_version_prints_name_and_version_without_api_keys(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+    monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
+
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["--version"])
+
+    assert exc.value.code == 0
+    assert capsys.readouterr().out == f"ioc-analyzer {__version__}\n"
+
+
+def test_version_matches_pyproject():
+    # Two copies of the version exist until Phase 7; this test stops them drifting apart.
+    pyproject = Path(__file__).parents[1] / "pyproject.toml"
+    with pyproject.open("rb") as f:
+        assert tomllib.load(f)["project"]["version"] == __version__
+
+
+def test_no_color_flag_turns_color_off_for_that_run_only(fake_vt, monkeypatch):
+    fake_vt(404)
+    calls = []
+    monkeypatch.setattr(cli, "set_color", calls.append)
+
+    cli.main(["--no-color", HASH_A])
+    cli.main([HASH_A])
+
+    assert calls == [False, True]
+
+
+def test_json_stdout_is_one_parseable_document(fake_vt, capsys):
+    fake_vt(404)
+
+    assert cli.main(["--json", HASH_A, "8.8.8.8"]) == 0
+
+    captured = capsys.readouterr()
+    results = json.loads(captured.out)["results"]  # fails if anything else is on stdout
+    assert [r["providers"]["virustotal"]["status"] for r in results] == [
+        "not_found",
+        "not_found",
+    ]
+    assert "Continuing without AbuseIPDB" in captured.err  # warning kept off stdout
+
+
+def test_json_with_no_iocs_prints_an_empty_document(fake_vt, capsys):
+    calls = fake_vt(200)
+    assert cli.main(["--json", "nothing to see here"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"results": []}
+    assert calls == []
+
+
+def test_verbose_shows_debug_messages(fake_vt, caplog):
+    fake_vt(404)
+    cli.main(["-v", HASH_A, "8.8.8.8"])
+    assert "extracted 2 indicator(s)" in caplog.text
+
+
+def test_without_verbose_debug_messages_are_hidden(fake_vt, caplog):
+    fake_vt(404)
+    cli.main(["-v", HASH_A])  # an earlier -v run must not leak into this one
+    caplog.clear()
+
+    cli.main([HASH_A])
+
+    assert "extracted" not in caplog.text
+
+
+def test_no_iocs_is_not_a_failure(fake_vt, capsys):
+    calls = fake_vt(200)
+
+    assert cli.main(["nothing to see here"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "No supported IOCs found" in captured.err
+    assert calls == []

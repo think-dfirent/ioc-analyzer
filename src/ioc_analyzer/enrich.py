@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Literal, Protocol
+
 from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 from ioc_analyzer.normalization import (
     normalize_domain_result,
@@ -16,27 +17,41 @@ from ioc_analyzer.normalization import (
 
 Kind = Literal["ip", "domain", "file"]
 
+"""What happened when we asked one provider about one indicator:
+ok: it answered with data
+not_found: not record (404) - not a failure
+unavailable: no API key, disabled earlier by 401/429
+error: we asked and the request failed (5xx, timeout, bad response)
+"""
+Status = Literal["ok", "not_found", "unavailable", "error"]
+
 
 @dataclass(frozen=True)
 class EnrichmentResult:
     """Outcome of enriching one indicator.
 
-    report:    normalized data for report.print_analysis, or None when VirusTotal
-               failed or has no record (an IP always gets a report, built from AbuseIPDB).
-    not_found: True when VirusTotal answered 404, a valid "no record" answer, not a failure.
-    errors:    one ready-to-show message per provider problem,
-               e.g. "8.8.8.8: AbuseIPDB failed: AbuseIPDB returned HTTP 500".
+    vt_status:    what happened with VirusTotal (see Status).
+    abuse_status: same for AbuseIPDB, or None when it does not apply (not an IP).
+    report:       normalized data for report.print_analysis, or None when VirusTotal
+                  failed or has no record (an IP always gets a report, built from AbuseIPDB).
+    errors:       one ready-to-show message per provider problem,
+                  e.g. "8.8.8.8: AbuseIPDB failed: AbuseIPDB returned HTTP 500".
     """
 
     indicator: str
     kind: Kind
+    vt_status: Status
+    abuse_status: Status | None = None
     report: dict[str, Any] | None = None
-    not_found: bool = False
     errors: tuple[str, ...] = ()
 
     @property
     def failed(self) -> bool:
         return bool(self.errors)
+
+    @property
+    def not_found(self) -> bool:
+        return self.vt_status == "not_found"
 
 
 class VTLookup(Protocol):
@@ -63,6 +78,13 @@ def _query(
         return None, f"{artifact}: {provider} failed: {exc}"
 
 
+def _status(data: dict[str, Any] | None, error: str | None) -> Status:
+    """Turn the outcome of one _query call into Status"""
+    if error is not None:
+        return "error"
+    return "not_found" if data is None else "ok"
+
+
 def enrich(
     indicators: Iterable[tuple[str, Kind]],
     vt_client: VTLookup,
@@ -80,7 +102,8 @@ def enrich(
     for artifact, kind in dict.fromkeys(indicators):
         errors: list[str] = []
 
-        vt_ok, vt = False, None
+        vt = None
+        vt_status: Status = "unavailable"
         if vt_enabled:
             try:
                 vt, error = _query(
@@ -90,14 +113,15 @@ def enrich(
                 errors.append(f"VirusTotal disabled for the rest of this run: {exc}")
                 vt_enabled = False
             else:
-                vt_ok = error is None
+                vt_status = _status(vt, error)
                 if error:
                     errors.append(error)
-        not_found = vt_ok and vt is None
 
         report: dict[str, Any] | None = None
+        abuse_status: Status | None = None
         if kind == "ip":
             abuse = None
+            abuse_status = "unavailable"
             if abuse_enabled and abuse_client is not None:
                 try:
                     abuse, error = _query(
@@ -107,9 +131,9 @@ def enrich(
                     errors.append(f"AbuseIPDB disabled for the rest of this run: {exc}")
                     abuse_enabled = False
                 else:
+                    abuse_status = _status(abuse, error)
                     if error:
                         errors.append(error)
-            vt_status = "not_found" if not_found else None
             report = normalize_ip_result(vt, abuse, artifact, vt_status=vt_status)
         elif vt is not None:
             if kind == "domain":
@@ -122,7 +146,8 @@ def enrich(
                 indicator=artifact,
                 kind=kind,
                 report=report,
-                not_found=not_found,
+                vt_status=vt_status,
+                abuse_status=abuse_status,
                 errors=tuple(errors),
             )
         )
