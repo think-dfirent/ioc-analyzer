@@ -117,4 +117,4 @@ def test_abuseipdb_server_error_fails_run_but_keeps_vt_result(fake_both, capsys)
 
 
 def test_app_module_is_a_thin_wrapper_around_cli():
-    assert cli.main is cli.main
+    assert app.main is cli.main
