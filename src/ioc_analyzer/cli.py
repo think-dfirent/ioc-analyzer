@@ -123,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         vt_client = VirusTotalClient(api_key=os.getenv("VIRUSTOTAL_API"))
     except ValueError as exc:
         print_error(str(exc))
-        return 1
+        return 2
     abuse_client = None
     try:
         abuse_client = AbuseIPDBClient(api_key=os.getenv("ABUSEIPDB_API"))
@@ -147,13 +147,12 @@ def main(argv: list[str] | None = None) -> int:
         dict(Counter(kind for _, kind in indicators)),
     )
     if not indicators:
-        if args.json:
-            # A JSON consumer must always get a document, even an empty one.
-            print(to_json([]))
-        else:
-            print("No supported IOCs found (public IPv4, domain, MD5, SHA1, SHA256).")
-        return 1
-
+        # Not a failure: the tool worked, the text had nothing to look up.
+        # A note on stderr; stdout stays empty (or an empty JSON document).
+        print(
+            "No supported IOCs found (public IPv4, domain, MD5, SHA1, SHA256).",
+            file=sys.stderr,
+        )
     results = enrich(indicators, vt_client, abuse_client)
     if args.json:
         for result in results:

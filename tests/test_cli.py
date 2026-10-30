@@ -61,7 +61,7 @@ def test_rejected_key_stops_further_vt_calls(fake_vt):
 def test_missing_key_stops_before_any_request(fake_vt, monkeypatch, capsys):
     calls = fake_vt(200)
     monkeypatch.delenv("VIRUSTOTAL_API")
-    assert cli.main([HASH_A]) == 1
+    assert cli.main([HASH_A]) == 2
     assert calls == []
     assert "VIRUSTOTAL_API" in capsys.readouterr().err
 
@@ -246,9 +246,10 @@ def test_json_stdout_is_one_parseable_document(fake_vt, capsys):
 
 
 def test_json_with_no_iocs_prints_an_empty_document(fake_vt, capsys):
-    fake_vt(200)
-    cli.main(["--json", "nothing to see here"])
+    calls = fake_vt(200)
+    assert cli.main(["--json", "nothing to see here"]) == 0
     assert json.loads(capsys.readouterr().out) == {"results": []}
+    assert calls == []
 
 
 def test_verbose_shows_debug_messages(fake_vt, caplog):
@@ -265,3 +266,14 @@ def test_without_verbose_debug_messages_are_hidden(fake_vt, caplog):
     cli.main([HASH_A])
 
     assert "extracted" not in caplog.text
+
+
+def test_no_iocs_is_not_a_failure(fake_vt, capsys):
+    calls = fake_vt(200)
+
+    assert cli.main(["nothing to see here"]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "No supported IOCs found" in captured.err
+    assert calls == []
