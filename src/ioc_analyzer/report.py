@@ -176,11 +176,9 @@ def print_file_result(result):
     timeline = result["timeline"]
 
     print_vt_stats(vt)
-    if vt is not None:
-        threat_label = vt.get("threat_label")
-        print(
-            f"Threat Label   : {color_text(show(threat_label), 'warning' if threat_label else 'muted')}"
-        )
+    print(
+        f"Threat Label   : {color_text(show(vt['threat_label']), 'warning' if vt['threat_label'] else 'muted')}"
+    )
 
     print_section("File Context")
     print(f"Name           : {show(context['name'])}")
