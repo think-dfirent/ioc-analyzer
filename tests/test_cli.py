@@ -1,4 +1,5 @@
 import io
+import json
 import tomllib
 from pathlib import Path
 
@@ -228,3 +229,23 @@ def test_no_color_flag_turns_color_off_for_that_run_only(fake_vt, monkeypatch):
     cli.main([HASH_A])
 
     assert calls == [False, True]
+
+
+def test_json_stdout_is_one_parseable_document(fake_vt, capsys):
+    fake_vt(404)
+
+    assert cli.main(["--json", HASH_A, "8.8.8.8"]) == 0
+
+    captured = capsys.readouterr()
+    results = json.loads(captured.out)["results"]  # fails if anything else is on stdout
+    assert [r["providers"]["virustotal"]["status"] for r in results] == [
+        "not_found",
+        "not_found",
+    ]
+    assert "Continuing without AbuseIPDB" in captured.err  # warning kept off stdout
+
+
+def test_json_with_no_iocs_prints_an_empty_document(fake_vt, capsys):
+    fake_vt(200)
+    cli.main(["--json", "nothing to see here"])
+    assert json.loads(capsys.readouterr().out) == {"results": []}

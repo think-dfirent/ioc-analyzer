@@ -16,6 +16,7 @@ from ioc_analyzer.clients.virustotal import VirusTotalClient
 from ioc_analyzer.enrich import enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
 from ioc_analyzer.report import print_analysis, print_error, set_color
+from ioc_analyzer.serialize import to_json
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +38,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-color",
         action="store_true",
         help="plain text output, no ANSI colors (the NO_COLOR variable does the same)",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print one JSON document to stdout (for scripts and SOAR); "
+        "warnings and errors still go to stderr",
     )
     source = parser.add_mutually_exclusive_group()
     source.add_argument(
@@ -113,15 +120,25 @@ def main(argv: list[str] | None = None) -> int:
         + [(value.lower(), "file") for value in hash_extraction(text)]
     )
     if not indicators:
-        print("No supported IOCs found (public IPv4, domain, MD5, SHA1, SHA256).")
+        if args.json:
+            # A JSON consumer must always get a document, even an empty one.
+            print(to_json([]))
+        else:
+            print("No supported IOCs found (public IPv4, domain, MD5, SHA1, SHA256).")
         return 1
 
     results = enrich(indicators, vt_client, abuse_client)
-    for result in results:
-        for error in result.errors:
-            print_error(error)
-        if result.report is not None:
-            print_analysis(result.report)
-        elif result.not_found:
-            print(f"{result.indicator}: no VirusTotal record found")
+    if args.json:
+        for result in results:
+            for error in result.errors:
+                print_error(error)
+        print(to_json(results))
+    else:
+        for result in results:
+            for error in result.errors:
+                print_error(error)
+            if result.report is not None:
+                print_analysis(result.report)
+            elif result.not_found:
+                print(f"{result.indicator}: no VirusTotal record found")
     return 1 if any(result.failed for result in results) else 0
