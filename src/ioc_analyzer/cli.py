@@ -60,8 +60,8 @@ def read_text(args: argparse.Namespace) -> str:
             return args.file.read_text(encoding="utf-8-sig")
         except UnicodeDecodeError as exc:
             raise InputError(
-                f"Cannot read {args.file}: not UTF-8"
-                "(Windows Powershell 5.1 '>' writes UTF-16; save it as UTF-8)"
+                f"Cannot read {args.file}: not UTF-8 "
+                "(Windows PowerShell 5.1 '>' writes UTF-16; save it as UTF-8)"
             ) from exc
         except OSError as exc:
             raise InputError(f"Cannot read {args.file}: {exc.strerror}") from exc
