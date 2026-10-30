@@ -19,10 +19,12 @@ Kind = Literal["ip", "domain", "file"]
 
 @dataclass(frozen=True)
 class EnrichmentResult:
-    """Outcome of enriching one indicator
-    report: normalized data for report.print_analysis, or None when there is fail| no record
-    not_found: 404
-    errors:one ready-to-show message per provider problem,
+    """Outcome of enriching one indicator.
+
+    report:    normalized data for report.print_analysis, or None when VirusTotal
+               failed or has no record (an IP always gets a report, built from AbuseIPDB).
+    not_found: True when VirusTotal answered 404, a valid "no record" answer, not a failure.
+    errors:    one ready-to-show message per provider problem,
                e.g. "8.8.8.8: AbuseIPDB failed: AbuseIPDB returned HTTP 500".
     """
 
@@ -35,29 +37,6 @@ class EnrichmentResult:
     @property
     def failed(self) -> bool:
         return bool(self.errors)
-
-
-class VTLookup(Protocol):
-    def lookup(self, artifact: str, kind: Kind) -> dict[str, Any] | None: ...
-
-
-class IPLookUp(Protocol):
-    def lookup(self, artifact: str) -> dict[str, Any] | None: ...
-
-
-def _query(
-    provider: str, lookup: Callable[[], dict[str, Any] | None], artifact: str
-) -> tuple[dict[str, Any] | None, str | None]:
-    """Run one lookup. Return (data, None) on an answer, (None, message) on failure.
-    ProviderUnavailableError is re-raised: the caller must stop using that provider.
-    Any other exception is a bug in our code and crashes on purpose.
-    """
-    try:
-        return lookup(), None
-    except ProviderUnavailableError:
-        raise
-    except ProviderError as exc:
-        return None, f"{artifact}:{provider} failed: {exc}"
 
 
 class VTLookup(Protocol):
