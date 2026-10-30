@@ -29,13 +29,17 @@ ABUSE_IP = {"artifact": "8.8.8.8", "abuse_confidence": 0, "total_reports": 3}
 
 
 def test_result_without_errors_is_not_failed():
-    result = EnrichmentResult(indicator="8.8.8.8", kind="ip")
+    result = EnrichmentResult(indicator="8.8.8.8", kind="ip", vt_status="ok")
     assert result.failed is False
 
 
 def test_result_with_errors_is_failed():
     result = EnrichmentResult(
-        indicator="8.8.8.8", kind="ip", errors=("AbuseIPDB failed: HTTP 500")
+        indicator="8.8.8.8",
+        kind="ip",
+        vt_status="ok",
+        abuse_status="error",
+        errors=("AbuseIPDB failed: HTTP 500",),
     )
     assert result.failed is True
 
@@ -107,3 +111,35 @@ def test_duplicate_indicators_are_looked_up_once():
 def test_programming_errors_crash():
     with pytest.raises(TypeError):
         enrich([(HASH, "file")], FakeClient({HASH: TypeError("bug in our code")}))
+
+
+@pytest.mark.parametrize(
+    ("vt_answer", "expected"),
+    [
+        (VT_IP, "ok"),
+        (None, "not_found"),
+        (ProviderError("HTTP 500"), "error"),
+        (ProviderUnavailableError("HTTP 429"), "unavailable"),
+    ],
+)
+def test_vt_status_names_what_happened(vt_answer, expected):
+    [result] = enrich([("8.8.8.8", "ip")], FakeClient({"8.8.8.8": vt_answer}))
+    assert result.vt_status == expected
+
+
+def test_provider_disabled_earlier_is_unavailable_for_later_indicators():
+    vt = FakeClient({HASH: ProviderUnavailableError("HTTP 429")})
+    first, second = enrich([(HASH, "file"), ("b" * 64, "file")], vt)
+    assert (first.vt_status, second.vt_status) == ("unavailable", "unavailable")
+    assert second.errors == ()  # reported once, on the indicator that hit it
+
+
+def test_abuseipdb_status_per_kind_and_configuration():
+    vt = FakeClient({"8.8.8.8": VT_IP})
+    [ip_with] = enrich([("8.8.8.8", "ip")], vt, FakeClient({"8.8.8.8": ABUSE_IP}))
+    [ip_without] = enrich([("8.8.8.8", "ip")], vt, None)
+    [file] = enrich([(HASH, "file")], FakeClient({}), FakeClient({}))
+
+    assert ip_with.abuse_status == "ok"
+    assert ip_without.abuse_status == "unavailable"  # no key configured
+    assert file.abuse_status is None  # AbuseIPDB does not cover hashes
