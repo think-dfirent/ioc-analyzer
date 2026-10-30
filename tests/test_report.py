@@ -47,3 +47,11 @@ def test_file_with_missing_fields_shows_unknown(capsys):
     assert "None" not in out
     assert "Size           : Unknown" in out
     assert "Threat Label   : Unknown" in out
+
+
+def test_vt_missing_count_shows_unknown(capsys):
+    print_analysis(normalize_domain_result({"artifact": "example.com"}))
+
+    out = capsys.readouterr().out
+    assert "Malicious     : Unknown" in out
+    assert "Unavailable" not in out

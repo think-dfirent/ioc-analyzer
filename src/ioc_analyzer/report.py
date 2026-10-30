@@ -67,7 +67,7 @@ def print_vt_stats(vt, status=None):
         return
     for label, key in (("Malicious", "malicious"), ("Suspicious", "suspicious")):
         count = vt[key]
-        value = f"{count} / {vt['total']}" if count is not None else "Unavailable"
+        value = UNKNOWN if count is None else f"{count} / {vt['total']}"
         tone = (
             "warning"
             if count is None
