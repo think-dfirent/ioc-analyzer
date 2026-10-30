@@ -1,12 +1,12 @@
 # normalization
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def format_timestamp(timestamp):
     if not timestamp:
         return None
 
-    return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+    return datetime.fromtimestamp(timestamp, tz=UTC).strftime(
         "%Y-%m-%d %H:%M UTC"
     )
 

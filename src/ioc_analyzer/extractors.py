@@ -1,4 +1,5 @@
-import re, ipaddress
+import ipaddress
+import re
 from urllib.parse import urlsplit
 
 # the non-domain file extensions

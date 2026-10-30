@@ -7,6 +7,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Literal, Protocol
+
 from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 from ioc_analyzer.normalization import (
     normalize_domain_result,

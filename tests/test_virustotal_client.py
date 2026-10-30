@@ -1,5 +1,6 @@
 import pytest
 import requests
+
 from ioc_analyzer.clients import virustotal
 from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 from ioc_analyzer.clients.virustotal import BASE_URL, VirusTotalClient, build_url

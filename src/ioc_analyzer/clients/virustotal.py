@@ -1,6 +1,8 @@
 from typing import Any, Literal
 from urllib.parse import quote
+
 import requests
+
 from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
 
 BASE_URL = "https://www.virustotal.com/api/v3"

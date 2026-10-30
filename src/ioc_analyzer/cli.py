@@ -1,9 +1,11 @@
 """Command-line entry point: read input, extract IOCs, enrich, print, return an exit code
 This is the only module that talks to the outside world (environment, argv, clipboard, stdout, stderr)
-Phase 4 replaces the argv with argparse
 """
 
-import os, sys, pyperclip
+import argparse
+import os
+
+import pyperclip
 from dotenv import load_dotenv
 
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient

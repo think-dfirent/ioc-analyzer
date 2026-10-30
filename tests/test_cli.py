@@ -1,6 +1,7 @@
 import pytest
+
 from ioc_analyzer import app, cli
-from ioc_analyzer.clients import virustotal, abuseipdb
+from ioc_analyzer.clients import abuseipdb, virustotal
 
 HASH_A = "a" * 64
 HASH_B = "b" * 64

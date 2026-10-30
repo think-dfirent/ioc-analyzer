@@ -1,9 +1,10 @@
+import pytest
+
 from ioc_analyzer.clients.virustotal import (
-    parse_vt_ip,
     parse_vt_domain,
     parse_vt_file,
+    parse_vt_ip,
 )
-import pytest
 
 
 @pytest.fixture

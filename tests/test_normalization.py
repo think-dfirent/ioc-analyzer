@@ -1,13 +1,7 @@
 from ioc_analyzer.normalization import (
-    normalize_ip_result,
+    format_timestamp,
     normalize_domain_result,
     normalize_file_result,
-    format_timestamp,
-)
-from ioc_analyzer.normalization import (
-    format_timestamp,
-    normalize_file_result,
-    normalize_domain_result,
     normalize_ip_result,
 )
 
