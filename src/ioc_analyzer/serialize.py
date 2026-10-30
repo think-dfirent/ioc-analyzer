@@ -7,6 +7,7 @@ The field names below are public contract: renaming one breaks every consumer.
 import json
 from collections.abc import Iterable
 from typing import Any
+
 from ioc_analyzer.enrich import EnrichmentResult
 
 

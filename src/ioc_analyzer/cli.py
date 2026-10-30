@@ -3,8 +3,10 @@ This is the only module that talks to the outside world (environment, argv, clip
 """
 
 import argparse
+import logging
 import os
 import sys
+from collections import Counter
 from pathlib import Path
 
 import pyperclip
@@ -17,6 +19,8 @@ from ioc_analyzer.enrich import enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
 from ioc_analyzer.report import print_analysis, print_error, set_color
 from ioc_analyzer.serialize import to_json
+
+logger = logging.getLogger(__name__)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,6 +44,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="plain text output, no ANSI colors (the NO_COLOR variable does the same)",
     )
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="show debug message on stderr",
+    )
+    parser.add_argument(
         "--json",
         action="store_true",
         help="print one JSON document to stdout (for scripts and SOAR); "
@@ -59,6 +69,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="read the text to scan from a UTF-8 file",
     )
     return parser
+
+
+def configure_logging(verbose: bool) -> None:
+    """Send log messages to stderr; -v shows our DEBUG messages.
+    The level is set on our package logger, not the root logger, so -v shows ioc_analyzer's debug
+    messages without the debug noise of requests/urllib3.
+    basicConfig does nothing if logging is already set up, so tests keep their own capture.
+    """
+    logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
+    level = logging.DEBUG if verbose else logging.WARNING
+    logging.getLogger("ioc_analyzer").setLevel(level)
 
 
 class InputError(Exception):
@@ -96,6 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     # Set every run, both ways, so one run's choice never leaks into the next.
     set_color(not args.no_color)
+    configure_logging(args.verbose)
     load_dotenv()
     try:
         vt_client = VirusTotalClient(api_key=os.getenv("VIRUSTOTAL_API"))
@@ -106,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         abuse_client = AbuseIPDBClient(api_key=os.getenv("ABUSEIPDB_API"))
     except ValueError as exc:
-        print_error(f"{exc} Continuing without AbuseIPDB")
+        print_error(f"{exc}; Continuing without AbuseIPDB")
 
     try:
         text = read_text(args)
@@ -118,6 +140,11 @@ def main(argv: list[str] | None = None) -> int:
         [(ip, "ip") for ip in ip_extraction(text)]
         + [(domain, "domain") for domain in domain_extraction(text)]
         + [(value.lower(), "file") for value in hash_extraction(text)]
+    )
+    logger.debug(
+        "extracted %d indicator(s): %s",
+        len(indicators),
+        dict(Counter(kind for _, kind in indicators)),
     )
     if not indicators:
         if args.json:

@@ -249,3 +249,19 @@ def test_json_with_no_iocs_prints_an_empty_document(fake_vt, capsys):
     fake_vt(200)
     cli.main(["--json", "nothing to see here"])
     assert json.loads(capsys.readouterr().out) == {"results": []}
+
+
+def test_verbose_shows_debug_messages(fake_vt, caplog):
+    fake_vt(404)
+    cli.main(["-v", HASH_A, "8.8.8.8"])
+    assert "extracted 2 indicator(s)" in caplog.text
+
+
+def test_without_verbose_debug_messages_are_hidden(fake_vt, caplog):
+    fake_vt(404)
+    cli.main(["-v", HASH_A])  # an earlier -v run must not leak into this one
+    caplog.clear()
+
+    cli.main([HASH_A])
+
+    assert "extracted" not in caplog.text

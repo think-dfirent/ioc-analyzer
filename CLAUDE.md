@@ -28,7 +28,7 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - Tests never touch the network.
 - AbuseIPDB key missing → print one warning at startup and run without AbuseIPDB (it only covers IPs).
 
-- CLI input: text, `--file` and (stdin) are mutually exclusive; giving more than one is a usage error (exit 2).
+- CLI input: text, `--file` and -(stdin) are mutually exclusive; giving more than one is a usage error (exit 2).
 - Exit codes: 0 = every lookup answered (404 counts as an answer; no IOCs found counts too), 1 = some lookup failed (results may be partial), 2 = usage/config error (bad args, missing VT key, unreadable file or clipboard).
 - `--json`: missing values are `null`, never "Unknown" (that is display-only, in report.py); each provider has a `status`: ok / not_found / unavailable / error.
 - `--json` output has no colors and nothing but JSON on stdout; warnings go to stderr.
@@ -64,8 +64,6 @@ The data flows through three stages:
    - `clients/errors.py` holds the shared exceptions. `ProviderUnavailableError` is a subclass of `ProviderError`.
    - The parsers turn raw API JSON into flat, provider-shaped dicts (e.g. `analysis_stats`, `as_owner`, `abuse_confidence`).
 3. **Normalization** (`normalization.py`): `normalize_ip_result(vt, abuse, indicator)`, `normalize_domain_result(vt)`, and `normalize_file_result(vt)` merge provider dicts into one display-shaped dict with `indicator`, `type` (`ip`/`domain`/`file`) and sections such as `virustotal`, `network_context`, `domain_context`, `timeline`, `sandbox`. The `print_*_result` functions in `app.py` read exactly these keys, so a key rename in normalization means updating the printer too.
-
-`app.py` currently mixes the CLI (`main`), the enrichment loop and terminal printing; splitting it is Phase 3 of the plan.
 
 Failure handling: `query_safely` wraps each provider call and returns `(ok, value)`. It prints a stderr message and returns `(False, None)` for `ProviderError`, `requests` errors and `ValueError`/`KeyError`/`TypeError`, but re-raises `ProviderUnavailableError`, which `main` catches to stop calling VirusTotal for the rest of the run. `normalize_ip_result` tolerates either provider being `None` (the section becomes `None`, and context fields fall back from VT to AbuseIPDB). A domain or file with no VT record (404) prints "no VirusTotal record" and is not a failure; one whose VT lookup failed is skipped. `main` returns exit code 1 if the VT key is missing, no IOCs were found, or any lookup failed, and 0 otherwise.
 
