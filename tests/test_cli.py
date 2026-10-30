@@ -1,5 +1,4 @@
-import pytest
-
+import pytest, io
 from ioc_analyzer import app, cli
 from ioc_analyzer.clients import abuseipdb, virustotal
 
@@ -141,3 +140,57 @@ def test_unknown_option_is_a_usage_error(monkeypatch, capsys):
 
     assert exc.value.code == 2
     assert "usage: ioc-analyzer" in capsys.readouterr().err
+
+
+def test_file_input_is_scanned(fake_vt, tmp_path, capsys):
+    fake_vt(404)
+    alert = tmp_path / "alert.txt"
+    alert.write_text(f"EDR alert, sha256={HASH_A}", encoding="utf-8")
+
+    assert cli.main(["--file", str(alert)]) == 0
+    assert "no VirusTotal record" in capsys.readouterr().out
+
+
+def test_dash_reads_stdin(fake_vt, monkeypatch, capsys):
+    fake_vt(404)
+    monkeypatch.setattr("sys.stdin", io.StringIO(f"hash {HASH_A}\n"))
+
+    assert cli.main(["-"]) == 0
+    assert "no VirusTotal record" in capsys.readouterr().out
+
+
+def test_text_and_file_together_is_a_usage_error(fake_vt, capsys):
+    with pytest.raises(SystemExit) as exc:
+        cli.main([HASH_A, "--file", "alert.txt"])
+
+    assert exc.value.code == 2
+    assert "not allowed with" in capsys.readouterr().err
+
+
+def test_missing_file_exits_2_before_any_lookup(fake_vt, tmp_path, capsys):
+    calls = fake_vt(200)
+
+    assert cli.main(["--file", str(tmp_path / "missing.txt")]) == 2
+    assert calls == []
+    assert "Cannot read" in capsys.readouterr().err
+
+
+def test_non_utf8_file_exits_2_with_a_hint(fake_vt, tmp_path, capsys):
+    fake_vt(200)
+    alert = tmp_path / "alert.txt"
+    alert.write_text(HASH_A, encoding="utf-16")  # what PowerShell 5.1 '>' produces
+
+    assert cli.main(["--file", str(alert)]) == 2
+    assert "not UTF-8" in capsys.readouterr().err
+
+
+def test_clipboard_failure_exits_2(fake_vt, monkeypatch, capsys):
+    fake_vt(200)
+
+    def broken_paste():
+        raise cli.pyperclip.PyperclipException("no clipboard mechanism")
+
+    monkeypatch.setattr(cli.pyperclip, "paste", broken_paste)
+
+    assert cli.main([]) == 2
+    assert "Cannot read clipboard" in capsys.readouterr().err
