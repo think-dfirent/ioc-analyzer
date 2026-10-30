@@ -1,7 +1,8 @@
 """Terminal output: colors and printers for enrichment results
 No calls or exit code here"""
 
-import os, sys
+import os
+import sys
 
 COLORS = {
     "heading": "1;36",
@@ -36,6 +37,18 @@ def color_text(value, color, stream=None):
     return f"\033[{COLORS[color]}m{text}\033[0m"
 
 
+UNKNOWN = "Unknown"
+
+
+def show(value, template="{}"):
+    """Format one field for display, or "Unknown" when the provider sent no value.
+    Only None and "" count as missing. 0 is real data.
+    """
+    if value is None or value == "":
+        return UNKNOWN
+    return template.format(value)
+
+
 def print_section(title):
     print(color_text(f"\n[ {title} ]", "heading"))
 
@@ -67,7 +80,7 @@ def print_vt_stats(vt, status=None):
         print(f"{label:<14}: {color_text(value, tone)}")
     reputation = vt["reputation"]
     tone = "warning" if reputation is None else "danger" if reputation < 0 else "muted"
-    print(f"Reputation     : {color_text(reputation, tone)}")
+    print(f"Reputation     : {color_text(show(reputation), tone)}")
 
 
 # print dispatcher
@@ -104,23 +117,27 @@ def print_ip_result(result):
         print(color_text("Unavailable", "warning"))
     else:
         confidence = abuse["confidence"]
-        tone = "zero" if confidence == 0 else "warning"
-        value = "Unavailable" if confidence is None else f"{confidence}%"
+        tone = (
+            "warning"
+            if confidence is None
+            else "zero" if confidence == 0 else "warning"
+        )
+        value = show(confidence, "{}%")
         print(f"Confidence     : {color_text(value, tone)}")
-        print(f"Reports        : {abuse['total_reports']}")
-        print(f"Reporters      : {abuse['distinct_reporters']}")
-        print(f"Last reported  : {abuse['last_reported']}")
+        print(f"Reports        : {show(abuse['total_reports'])}")
+        print(f"Reporters      : {show(abuse['distinct_reporters'])}")
+        print(f"Last reported  : {show(abuse['last_reported'])}")
 
     print_section("Network Context")
-    print(f"Country        : {context['country']}")
-    print(f"ASN            : AS{context['asn']}")
-    print(f"Owner          : {context['owner']}")
-    print(f"Network        : {context['network']}")
-    print(f"Usage          : {context['usage_type']}")
-    print(f"Domain         : {context['domain']}")
+    print(f"Country        : {show(context['country'])}")
+    print(f"ASN            : {show(context['asn'], 'AS{}')}")
+    print(f"Owner          : {show(context['owner'])}")
+    print(f"Network        : {show(context['network'])}")
+    print(f"Usage          : {show(context['usage_type'])}")
+    print(f"Domain         : {show(context['domain'])}")
     print(
         f"Tor            : "
-        f"{'Unavailable' if context['is_tor'] is None else 'Yes' if context['is_tor'] else 'No'}"
+        f"{UNKNOWN if context['is_tor'] is None else 'Yes' if context['is_tor'] else 'No'}"
     )
 
 
@@ -132,17 +149,17 @@ def print_domain_result(result):
     print_vt_stats(vt)
 
     print_section("Domain Context")
-    print(f"Registrar      : {context['registrar']}")
-    print(f"TLD            : {context['tld']}")
-    print(f"Created        : {context['creation_date']}")
-    print(f"Expires        : {context['expiration_date']}")
-    print(f"First Seen     : {context['first_seen']}")
+    print(f"Registrar      : {show(context['registrar'])}")
+    print(f"TLD            : {show(context['tld'])}")
+    print(f"Created        : {show(context['creation_date'])}")
+    print(f"Expires        : {show(context['expiration_date'])}")
+    print(f"First Seen     : {show(context['first_seen'])}")
 
     print_section("DNS Records")
 
     if dns["records"]:
         for record in dns["records"]:
-            print(f"{record['type']:<14}: " f"{record['value']}")
+            print(f"{show(record['type']):<14}: {show(record['value'])}")
     else:
         print(color_text("No DNS records available", "muted"))
 
@@ -156,25 +173,27 @@ def print_file_result(result):
     timeline = result["timeline"]
 
     print_vt_stats(vt)
-    print(
-        f"Threat Label   : {color_text(vt['threat_label'], 'warning' if vt['threat_label'] else 'muted')}"
-    )
+    if vt is not None:
+        threat_label = vt.get("threat_label")
+        print(
+            f"Threat Label   : {color_text(show(threat_label), 'warning' if threat_label else 'muted')}"
+        )
 
     print_section("File Context")
-    print(f"Name           : {context['name']}")
-    print(f"Type           : {context['type']}")
-    print(f"Extension      : {context['extension']}")
-    print(f"Size           : {context['size']} bytes")
+    print(f"Name           : {show(context['name'])}")
+    print(f"Type           : {show(context['type'])}")
+    print(f"Extension      : {show(context['extension'])}")
+    print(f"Size           : {show(context['size'], '{} bytes')}")
 
     print_section("Hashes")
-    print(f"MD5            : {context['md5']}")
-    print(f"SHA1           : {context['sha1']}")
-    print(f"SHA256         : {context['sha256']}")
+    print(f"MD5            : {show(context['md5'])}")
+    print(f"SHA1           : {show(context['sha1'])}")
+    print(f"SHA256         : {show(context['sha256'])}")
 
     print_section("Timeline")
-    print(f"First Submitted: {timeline['first_submission']}")
-    print(f"Last Submitted : {timeline['last_submission']}")
-    print(f"Last Analysis  : {timeline['last_analysis']}")
+    print(f"First Submitted: {show(timeline['first_submission'])}")
+    print(f"Last Submitted : {show(timeline['last_submission'])}")
+    print(f"Last Analysis  : {show(timeline['last_analysis'])}")
 
     if context["tags"]:
         print(f"\nTags           : {', '.join(context['tags'])}")
@@ -188,4 +207,4 @@ def print_file_result(result):
                 if verdict == "malicious"
                 else "warning" if verdict == "suspicious" else "muted"
             )
-            print(f"{sandbox:<14}: {color_text(verdict, tone)}")
+            print(f"{sandbox:<14}: {color_text(show(verdict), tone)}")
