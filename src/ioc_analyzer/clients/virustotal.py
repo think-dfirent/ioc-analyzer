@@ -8,8 +8,8 @@ import requests
 
 from ioc_analyzer.clients.errors import (
     ProviderError,
-    ProviderTransientError,
     ProviderRateLimitedError,
+    ProviderTransientError,
     ProviderUnavailableError,
 )
 from ioc_analyzer.clients.ratelimit import RateLimiter
