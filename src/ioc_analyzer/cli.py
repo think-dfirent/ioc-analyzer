@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 from ioc_analyzer import __version__
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
-from ioc_analyzer.clients.virustotal import VirusTotalClient
+from ioc_analyzer.clients.virustotal import VirusTotalClient, DEFAULT_RATE_PER_MIN
 from ioc_analyzer.enrich import enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
 from ioc_analyzer.report import print_analysis, print_error, set_color
@@ -82,6 +82,24 @@ def configure_logging(verbose: bool) -> None:
     logging.getLogger("ioc_analyzer").setLevel(level)
 
 
+def env_int(name: str, default: int) -> int:
+    """Read a whole number (0 or more) from the environment; unset or empty = default.
+
+    Raises ValueError naming the variable, so main() can report a config error (exit 2)
+    instead of Python's "invalid literal for int() with base 10".
+    """
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = -1
+    if value < 0:
+        raise ValueError(f"{name} must be a whole number, 0 or more; got {raw!r}")
+    return value
+
+
 class InputError(Exception):
     """The text to scan could not be read: a usage problem, so exit code 2."""
 
@@ -120,7 +138,10 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(args.verbose)
     load_dotenv()
     try:
-        vt_client = VirusTotalClient(api_key=os.getenv("VIRUSTOTAL_API"))
+        vt_client = VirusTotalClient(
+            api_key=os.getenv("VIRUSTOTAL_API"),
+            rate_per_min=env_int("VIRUSTOTAL_RATE_PER_MIN", DEFAULT_RATE_PER_MIN),
+        )
     except ValueError as exc:
         print_error(str(exc))
         return 2

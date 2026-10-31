@@ -26,4 +26,5 @@ def clock(monkeypatch):
 
     fake = FakeClock()
     monkeypatch.setattr(time, "sleep", fake.sleep)
+    monkeypatch.setattr(time, "monotonic", fake.monotonic)
     return fake

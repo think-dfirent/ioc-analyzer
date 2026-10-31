@@ -194,3 +194,26 @@ def test_server_error_on_every_try_fails_after_two_retries(client, fake_get, clo
         client.lookup("8.8.8.8", "ip")
     assert len(calls) == 3
     assert clock.sleeps == [1.0, 2.0]
+
+
+def test_client_waits_for_the_rate_limit(monkeypatch, clock):
+    get = Sequence(*[FakeResponse(404)] * 3)
+    monkeypatch.setattr(virustotal.requests, "get", get)
+    client = VirusTotalClient(api_key="k", rate_per_min=2)
+
+    for _ in range(3):
+        client.lookup("8.8.8.8", "ip")
+
+    assert get.calls == 3
+    assert clock.sleeps == [60.0]
+
+
+def test_retries_count_against_the_rate_limit(monkeypatch, clock):
+    get = Sequence(FakeResponse(503), FakeResponse(404), FakeResponse(404))
+    monkeypatch.setattr(virustotal.requests, "get", get)
+    client = VirusTotalClient(api_key="k", rate_per_min=2)
+
+    client.lookup("8.8.8.8", "ip")  # t=0 fails, retry at t=1: both use the quota
+    client.lookup("1.1.1.1", "ip")  # window full until t=60
+
+    assert clock.sleeps == [1.0, 59.0]
