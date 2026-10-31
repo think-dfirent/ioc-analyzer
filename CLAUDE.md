@@ -23,7 +23,11 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 
 - Missing/unknown provider data displays as "Unknown"/"Unavailable", never 0 or 0/0.
 - Provider 404 = "not found" (a valid answer), not a failure.
-- 401/429 = provider unavailable for the rest of the run; stop calling it.
+- 401 = provider unavailable for the rest of the run; stop calling it.
+- 429 = wait for the rate window and retry once; a second 429 means quota is used up → unavailable for the rest of the run.
+- Retry only transient failures (timeout, connection error, 5xx): at most 2 retries, waiting 1 s then 2 s. Never retry 401, 404, other 4xx, or a 200 with a bad body. Only GET lookups are ever retried.
+- VirusTotal throttle: at most `VIRUSTOTAL_RATE_PER_MIN` calls in any rolling 60 s (default 4; 0 = off).
+- Waits and retries are logged (INFO/WARNING, stderr); final per-indicator failures stay in `result.errors`. API keys never appear in logs or error messages.
 - stdout is for results only; diagnostics and errors go to stderr.
 - Tests never touch the network.
 - AbuseIPDB key missing → print one warning at startup and run without AbuseIPDB (it only covers IPs).
