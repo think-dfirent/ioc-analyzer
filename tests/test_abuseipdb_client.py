@@ -53,8 +53,10 @@ def fake_get(monkeypatch):
 
 
 @pytest.fixture
-def client():
-    return AbuseIPDBClient(api_key="test_key", timeout=5, max_age_days=90)
+def client(clock):
+    return AbuseIPDBClient(
+        api_key="test_key", timeout=5, max_age_days=90, sleep=clock.sleep
+    )
 
 
 @pytest.fixture
@@ -176,3 +178,12 @@ def test_lookup_confidence_zero_stays_zero(client, fake_get, abuse_payload):
     abuse_payload["data"]["abuseConfidenceScore"] = 0
     fake_get(FakeResponse(200, abuse_payload))
     assert client.lookup("118.25.6.39")["abuse_confidence"] == 0
+
+
+def test_abuse_ipdb_retries_server_error(monkeypatch, client, abuse_payload, clock):
+    outcomes = [FakeResponse(502), FakeResponse(200, abuse_payload)]
+    monkeypatch.setattr(abuseipdb.requests, "get", lambda url, **kw: outcomes.pop(0))
+
+    assert client.lookup("118.25.6.39")["abuse_confidence"] == 100
+    assert outcomes == []
+    assert clock.sleeps == [1.0]

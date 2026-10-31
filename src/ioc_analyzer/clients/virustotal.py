@@ -1,9 +1,17 @@
+import time
+from collections.abc import Callable
+from functools import partial
 from typing import Any, Literal
 from urllib.parse import quote
 
 import requests
 
-from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
+from ioc_analyzer.clients.errors import (
+    ProviderError,
+    ProviderTransientError,
+    ProviderUnavailableError,
+)
+from ioc_analyzer.clients.retry import call_with_retries
 
 BASE_URL = "https://www.virustotal.com/api/v3"
 DEFAULT_TIMEOUT_SECONDS = 10
@@ -98,7 +106,10 @@ _PARSER = {
 
 class VirusTotalClient:
     def __init__(
-        self, api_key: str | None, timeout: float = DEFAULT_TIMEOUT_SECONDS
+        self,
+        api_key: str | None,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         if not api_key:
             raise ValueError(
@@ -106,11 +117,14 @@ class VirusTotalClient:
             )
         self._api_key = api_key
         self._timeout = timeout
+        # looked up now, not as a default argument, so tests that replace
+        # time.sleep before building the client get the fake
+        self._sleep = time.sleep if sleep is None else sleep
 
     def lookup(self, artifact: str, kind: ArtifactKind) -> dict[str, Any] | None:
         url = build_url(artifact, kind)
         parser = _PARSER[kind]
-        payload = self._fetch(url)
+        payload = call_with_retries(partial(self._fetch, url), sleep=self._sleep)
         if payload is None:
             return None
         try:
@@ -124,8 +138,10 @@ class VirusTotalClient:
             response = requests.get(
                 url, headers={"x-apikey": self._api_key}, timeout=self._timeout
             )
+        except (requests.Timeout, requests.ConnectionError) as exc:
+            raise ProviderTransientError(f"VirusTotal unreachable: {exc}") from exc
         except requests.RequestException as exc:
-            raise ProviderError(f"VirusTotal unreachable: {exc}") from exc
+            raise ProviderError(f"VirusTotal request failed: {exc}") from exc
 
         status = response.status_code
         if status == 404:
@@ -136,6 +152,8 @@ class VirusTotalClient:
             )
         if status == 429:
             raise ProviderUnavailableError(f"VirusTotal quota exceeded ({status})")
+        if status >= 500:
+            raise ProviderTransientError(f"VirusTotal returned HTTP {status}")
         if not response.ok:
             raise ProviderError(f"VirusTotal returned HTTP {status}")
 

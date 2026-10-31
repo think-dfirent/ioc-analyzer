@@ -1,4 +1,5 @@
 import time
+
 import pytest
 
 
@@ -17,10 +18,10 @@ class FakeClock:
         self.now += seconds
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def clock(monkeypatch):
-    """Every tests gets a fake clock, and nothing in a test can really sleep.
-    Like "tests never tounch the network": a retry that waits 3 real seconds would make the suite
+    """Every test gets a fake clock, and nothing in a test can really sleep.
+    Like "tests never touch the network": a retry that waits 3 real seconds would make the suite
     slow without anyone noticing why"""
 
     fake = FakeClock()

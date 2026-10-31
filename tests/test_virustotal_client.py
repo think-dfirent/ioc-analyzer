@@ -78,8 +78,8 @@ def fake_get(monkeypatch):
 
 
 @pytest.fixture
-def client():
-    return VirusTotalClient(api_key="test-key", timeout=5)
+def client(clock):
+    return VirusTotalClient(api_key="test-key", timeout=5, sleep=clock.sleep)
 
 
 def vt_ip_payload():
@@ -116,7 +116,7 @@ def test_lookup_server_error_skips_only_this_artifact(client, fake_get):
     fake_get(FakeResponse(500))
     with pytest.raises(ProviderError) as info:
         client.lookup("8.8.8.8", "ip")
-    assert type(info.value) is ProviderError
+    assert not isinstance(info.value, ProviderUnavailableError)
 
 
 def test_lookup_network_failure_is_provider_error(client, fake_get):
@@ -143,3 +143,54 @@ def test_lookup_non_object_json_is_provider_error(client, fake_get):
     fake_get(FakeResponse(200, ["not", "a", "dict"]))
     with pytest.raises(ProviderError, match="unexpected shape"):
         client.lookup("8.8.8.8", "ip")
+
+
+class Sequence:
+    """requests.get stand-in that answers with the next response (or error) each call."""
+
+    def __init__(self, *outcomes):
+        self.outcomes = list(outcomes)
+        self.calls = 0
+
+    def __call__(self, url, **kwargs):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+@pytest.mark.parametrize(
+    "first",
+    [FakeResponse(503), requests.Timeout("slow"), requests.ConnectionError("reset")],
+)
+def test_transient_failure_is_retried(client, monkeypatch, clock, first):
+    get = Sequence(first, FakeResponse(200, vt_ip_payload()))
+    monkeypatch.setattr(virustotal.requests, "get", get)
+
+    assert client.lookup("8.8.8.8", "ip")["artifact"] == "8.8.8.8"
+    assert get.calls == 2
+    assert clock.sleeps == [1.0]
+
+
+@pytest.mark.parametrize(
+    "response", [FakeResponse(400), FakeResponse(401), FakeResponse(404)]
+)
+def test_permanent_answers_are_not_retried(client, monkeypatch, clock, response):
+    get = Sequence(response)
+    monkeypatch.setattr(virustotal.requests, "get", get)
+
+    try:
+        client.lookup("8.8.8.8", "ip")
+    except ProviderError:
+        pass
+    assert get.calls == 1
+    assert clock.sleeps == []
+
+
+def test_server_error_on_every_try_fails_after_two_retries(client, fake_get, clock):
+    calls = fake_get(FakeResponse(500))
+    with pytest.raises(ProviderError, match="HTTP 500"):
+        client.lookup("8.8.8.8", "ip")
+    assert len(calls) == 3
+    assert clock.sleeps == [1.0, 2.0]
