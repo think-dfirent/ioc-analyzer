@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import tomllib
 from pathlib import Path
 
@@ -76,12 +77,16 @@ def test_unknown_ip_shows_no_record(fake_vt, monkeypatch, capsys):
     assert "No VirusTotal record" in capsys.readouterr().out
 
 
-def test_missing_abuseipdb_key_warns_and_continues(fake_vt, monkeypatch, capsys):
+def test_missing_abuseipdb_key_warns_and_continues(
+    fake_vt, monkeypatch, capsys, caplog
+):
     fake_vt(404)
     monkeypatch.delenv("ABUSEIPDB_API", raising=False)
     assert cli.main(["8.8.8.8"]) == 0
     captured = capsys.readouterr()
-    assert "Continuing without AbuseIPDB" in captured.err
+    [record] = [r for r in caplog.records if "AbuseIPDB" in r.getMessage()]
+    assert record.levelname == "WARNING"
+    assert "continuing without AbuseIPDB" in record.getMessage()
     assert "No VirusTotal record" in captured.out
 
 
@@ -231,7 +236,7 @@ def test_no_color_flag_turns_color_off_for_that_run_only(fake_vt, monkeypatch):
     assert calls == [False, True]
 
 
-def test_json_stdout_is_one_parseable_document(fake_vt, capsys):
+def test_json_stdout_is_one_parseable_document(fake_vt, capsys, caplog):
     fake_vt(404)
 
     assert cli.main(["--json", HASH_A, "8.8.8.8"]) == 0
@@ -242,7 +247,7 @@ def test_json_stdout_is_one_parseable_document(fake_vt, capsys):
         "not_found",
         "not_found",
     ]
-    assert "Continuing without AbuseIPDB" in captured.err  # warning kept off stdout
+    assert "continuing without AbuseIPDB" in caplog.text  # logged, not on stdout
 
 
 def test_json_with_no_iocs_prints_an_empty_document(fake_vt, capsys):
@@ -277,3 +282,9 @@ def test_no_iocs_is_not_a_failure(fake_vt, capsys):
     assert captured.out == ""
     assert "No supported IOCs found" in captured.err
     assert calls == []
+
+
+def test_info_messages_are_shown_by_default(fake_vt):
+    fake_vt(404)
+    cli.main([HASH_A])
+    assert logging.getLogger("ioc_analyzer").getEffectiveLevel() == logging.INFO

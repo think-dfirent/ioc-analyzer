@@ -72,13 +72,13 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def configure_logging(verbose: bool) -> None:
-    """Send log messages to stderr; -v shows our DEBUG messages.
-    The level is set on our package logger, not the root logger, so -v shows ioc_analyzer's debug
-    messages without the debug noise of requests/urllib3.
-    basicConfig does nothing if logging is already set up, so tests keep their own capture.
-    """
+    """Send log messages to stderr: INFO and up by default, DEBUG with -v.
+
+    INFO is on by default so waits and retries are visible; a terminal that
+    goes quiet for a minute looks hung."""
+
     logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
-    level = logging.DEBUG if verbose else logging.WARNING
+    level = logging.DEBUG if verbose else logging.INFO
     logging.getLogger("ioc_analyzer").setLevel(level)
 
 
@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         abuse_client = AbuseIPDBClient(api_key=os.getenv("ABUSEIPDB_API"))
     except ValueError as exc:
-        print_error(f"{exc}; Continuing without AbuseIPDB")
+        logger.warning("%s; continuing without AbuseIPDB", exc)
 
     try:
         text = read_text(args)
