@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 from ioc_analyzer import __version__
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
-from ioc_analyzer.clients.virustotal import VirusTotalClient
+from ioc_analyzer.clients.virustotal import DEFAULT_RATE_PER_MIN, VirusTotalClient
 from ioc_analyzer.enrich import enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
 from ioc_analyzer.report import print_analysis, print_error, set_color
@@ -72,14 +72,32 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def configure_logging(verbose: bool) -> None:
-    """Send log messages to stderr; -v shows our DEBUG messages.
-    The level is set on our package logger, not the root logger, so -v shows ioc_analyzer's debug
-    messages without the debug noise of requests/urllib3.
-    basicConfig does nothing if logging is already set up, so tests keep their own capture.
-    """
+    """Send log messages to stderr: INFO and up by default, DEBUG with -v.
+
+    INFO is on by default so waits and retries are visible; a terminal that
+    goes quiet for a minute looks hung."""
+
     logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
-    level = logging.DEBUG if verbose else logging.WARNING
+    level = logging.DEBUG if verbose else logging.INFO
     logging.getLogger("ioc_analyzer").setLevel(level)
+
+
+def env_int(name: str, default: int) -> int:
+    """Read a whole number (0 or more) from the environment; unset or empty = default.
+
+    Raises ValueError naming the variable, so main() can report a config error (exit 2)
+    instead of Python's "invalid literal for int() with base 10".
+    """
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = -1
+    if value < 0:
+        raise ValueError(f"{name} must be a whole number, 0 or more; got {raw!r}")
+    return value
 
 
 class InputError(Exception):
@@ -120,7 +138,10 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(args.verbose)
     load_dotenv()
     try:
-        vt_client = VirusTotalClient(api_key=os.getenv("VIRUSTOTAL_API"))
+        vt_client = VirusTotalClient(
+            api_key=os.getenv("VIRUSTOTAL_API"),
+            rate_per_min=env_int("VIRUSTOTAL_RATE_PER_MIN", DEFAULT_RATE_PER_MIN),
+        )
     except ValueError as exc:
         print_error(str(exc))
         return 2
@@ -128,7 +149,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         abuse_client = AbuseIPDBClient(api_key=os.getenv("ABUSEIPDB_API"))
     except ValueError as exc:
-        print_error(f"{exc}; Continuing without AbuseIPDB")
+        logger.warning("%s; continuing without AbuseIPDB", exc)
 
     try:
         text = read_text(args)

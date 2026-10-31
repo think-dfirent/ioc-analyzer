@@ -1,8 +1,17 @@
+import time
+from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 import requests
 
-from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
+from ioc_analyzer.clients.errors import (
+    ProviderError,
+    ProviderRateLimitedError,
+    ProviderTransientError,
+    ProviderUnavailableError,
+)
+from ioc_analyzer.clients.retry import call_with_retries
 
 BASE_URL = "https://api.abuseipdb.com/api/v2/check"
 DEFAULT_TIMEOUT_SECONDS = 10
@@ -41,6 +50,7 @@ class AbuseIPDBClient:
         api_key: str | None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         max_age_days: int = DEFAULT_MAX_AGE_DAYS,
+        sleep: Callable[[float], None] | None = None,
     ) -> None:
         if not api_key:
             raise ValueError(
@@ -53,9 +63,10 @@ class AbuseIPDBClient:
         self._api_key = api_key
         self._timeout = timeout
         self._max_age_days = max_age_days
+        self._sleep = time.sleep if sleep is None else sleep
 
     def lookup(self, artifact: str) -> dict[str, Any]:
-        payload = self._fetch(artifact)
+        payload = call_with_retries(partial(self._fetch, artifact), sleep=self._sleep)
         data = payload.get("data")
         if not isinstance(data, dict):
             raise ProviderError(f"AbuseIPDB returned no data {_error_detail(payload)}")
@@ -68,13 +79,17 @@ class AbuseIPDBClient:
             response = requests.get(
                 BASE_URL, headers=headers, params=params, timeout=self._timeout
             )
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            raise ProviderTransientError(f"AbuseIPDB unreachable: {exc}") from exc
         except requests.RequestException as exc:
-            raise ProviderError(f"AbuseIPDB unreachable: {exc}") from exc
+            raise ProviderError(f"AbuseIPDB request failed: {exc}") from exc
         status = response.status_code
         if status == 401:
             raise ProviderUnavailableError(f"AbuseIPDB rejected the API key {status}")
         if status == 429:
-            raise ProviderUnavailableError(f"AbuseIPDB quota exceeded {status}")
+            raise ProviderRateLimitedError(f"AbuseIPDB rate limit hit ({status})")
+        if status >= 500:
+            raise ProviderTransientError(f"AbuseIPDB returned HTTP {status}")
         if not response.ok:
             raise ProviderError(f"AbuseIPDB returned HTTP {status}")
 

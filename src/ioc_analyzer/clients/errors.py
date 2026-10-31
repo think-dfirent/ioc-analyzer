@@ -12,3 +12,18 @@ class ProviderUnavailableError(ProviderError):
     Raised for problems that will repeat for every indicator, such as a rejected API key (HTTP 401)
     or an exhausted quota (HTTP 429), the caller should stop sending requests to this provider.
     """
+
+
+class ProviderTransientError(ProviderError):
+    """A failure that may not happen on the next try: timeout, dropped connection, 5xx
+    Clients retry these a few times (see retry.py). If every try fails, the caller treats it like any other ProviderError:
+    this indicator failed, carry on.
+    """
+
+
+class ProviderRateLimitedError(ProviderError):
+    """HTTP 429: too many requests
+    Either we went too fast (clears once the rate window passes) or the daily/monthly quota is used up
+    (does not clear today). The status code can't tell which, so retry.py waits once and tries again; a second 429 means the
+    quota is gone.
+    """

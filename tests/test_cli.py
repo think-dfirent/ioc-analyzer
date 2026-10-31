@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import tomllib
 from pathlib import Path
 
@@ -28,6 +29,7 @@ class FakeResponse:
 def fake_vt(monkeypatch):
     monkeypatch.setattr(cli, "load_dotenv", lambda: None)
     monkeypatch.setenv("VIRUSTOTAL_API", "test-key")
+    monkeypatch.delenv("VIRUSTOTAL_RATE_PER_MIN", raising=False)  # use the default
     calls = []
 
     def answer_with(status_code):
@@ -76,12 +78,16 @@ def test_unknown_ip_shows_no_record(fake_vt, monkeypatch, capsys):
     assert "No VirusTotal record" in capsys.readouterr().out
 
 
-def test_missing_abuseipdb_key_warns_and_continues(fake_vt, monkeypatch, capsys):
+def test_missing_abuseipdb_key_warns_and_continues(
+    fake_vt, monkeypatch, capsys, caplog
+):
     fake_vt(404)
     monkeypatch.delenv("ABUSEIPDB_API", raising=False)
     assert cli.main(["8.8.8.8"]) == 0
     captured = capsys.readouterr()
-    assert "Continuing without AbuseIPDB" in captured.err
+    [record] = [r for r in caplog.records if "AbuseIPDB" in r.getMessage()]
+    assert record.levelname == "WARNING"
+    assert "continuing without AbuseIPDB" in record.getMessage()
     assert "No VirusTotal record" in captured.out
 
 
@@ -231,7 +237,7 @@ def test_no_color_flag_turns_color_off_for_that_run_only(fake_vt, monkeypatch):
     assert calls == [False, True]
 
 
-def test_json_stdout_is_one_parseable_document(fake_vt, capsys):
+def test_json_stdout_is_one_parseable_document(fake_vt, capsys, caplog):
     fake_vt(404)
 
     assert cli.main(["--json", HASH_A, "8.8.8.8"]) == 0
@@ -242,7 +248,7 @@ def test_json_stdout_is_one_parseable_document(fake_vt, capsys):
         "not_found",
         "not_found",
     ]
-    assert "Continuing without AbuseIPDB" in captured.err  # warning kept off stdout
+    assert "continuing without AbuseIPDB" in caplog.text  # logged, not on stdout
 
 
 def test_json_with_no_iocs_prints_an_empty_document(fake_vt, capsys):
@@ -277,3 +283,44 @@ def test_no_iocs_is_not_a_failure(fake_vt, capsys):
     assert captured.out == ""
     assert "No supported IOCs found" in captured.err
     assert calls == []
+
+
+def test_info_messages_are_shown_by_default(fake_vt):
+    fake_vt(404)
+    cli.main([HASH_A])
+    assert logging.getLogger("ioc_analyzer").getEffectiveLevel() == logging.INFO
+
+
+FIVE_HASHES = [c * 64 for c in "abcde"]
+
+
+def test_vt_rate_limit_defaults_to_four_per_minute(fake_vt, clock):
+    fake_vt(404)
+    assert cli.main(FIVE_HASHES) == 0
+    assert clock.sleeps == [60.0]
+
+
+def test_rate_limit_zero_turns_the_throttle_off(fake_vt, monkeypatch, clock):
+    fake_vt(404)
+    monkeypatch.setenv("VIRUSTOTAL_RATE_PER_MIN", "0")
+    assert cli.main(FIVE_HASHES) == 0
+    assert clock.sleeps == []
+
+
+@pytest.mark.parametrize("value", ["four", "-1"])
+def test_bad_rate_limit_is_a_config_error(fake_vt, monkeypatch, capsys, value):
+    calls = fake_vt(404)
+    monkeypatch.setenv("VIRUSTOTAL_RATE_PER_MIN", value)
+    assert cli.main([HASH_A]) == 2
+    assert calls == []
+    assert "VIRUSTOTAL_RATE_PER_MIN" in capsys.readouterr().err
+
+
+def test_vt_429_twice_disables_vt_for_the_rest_of_the_run(fake_vt, clock, capsys):
+    calls = fake_vt(429)
+
+    assert cli.main([HASH_A, HASH_B]) == 1
+
+    assert len(calls) == 2  # first hash: try, wait 60 s, try again; second: never
+    assert 60.0 in clock.sleeps
+    assert "disabled for the rest of this run" in capsys.readouterr().err

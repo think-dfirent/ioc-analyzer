@@ -23,7 +23,11 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 
 - Missing/unknown provider data displays as "Unknown"/"Unavailable", never 0 or 0/0.
 - Provider 404 = "not found" (a valid answer), not a failure.
-- 401/429 = provider unavailable for the rest of the run; stop calling it.
+- 401 = provider unavailable for the rest of the run; stop calling it.
+- 429 = wait for the rate window and retry once; a second 429 means quota is used up → unavailable for the rest of the run.
+- Retry only transient failures (timeout, connection error, 5xx): at most 2 retries, waiting 1 s then 2 s. Never retry 401, 404, other 4xx, or a 200 with a bad body. Only GET lookups are ever retried.
+- VirusTotal throttle: at most `VIRUSTOTAL_RATE_PER_MIN` calls in any rolling 60 s (default 4; 0 = off).
+- Waits and retries are logged (INFO/WARNING, stderr); final per-indicator failures stay in `result.errors`. API keys never appear in logs or error messages.
 - stdout is for results only; diagnostics and errors go to stderr.
 - Tests never touch the network.
 - AbuseIPDB key missing → print one warning at startup and run without AbuseIPDB (it only covers IPs).
@@ -66,7 +70,7 @@ cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
 - **`cli.py`** is the only module that touches the outside world: argv (`build_parser`), input (`read_text`: `--file`, `-` for stdin, text, clipboard), `.env`, logging setup (`configure_logging`), stdout/stderr and the exit code. `app.py` is a thin wrapper kept so `python -m ioc_analyzer.app` keeps working until Phase 7 adds a console script.
 - **`extractors.py`**: regex-based `ip_extraction` (keeps only `ipaddress.is_global`), `domain_extraction` (consumes full URLs first and keeps only the hostname), `hash_extraction`.
 - **`enrich.py`**: `enrich(indicators, vt_client, abuse_client)` returns one frozen `EnrichmentResult` per unique indicator. It holds `vt_status`/`abuse_status` (`ok`/`not_found`/`unavailable`/`error`; `abuse_status` is `None` for non-IPs), `report` and `errors`. It never prints or exits. Clients are typed as Protocols (`VTLookup`, `IPLookup`), so tests pass fakes.
-- **`clients/`**: `VirusTotalClient.lookup(artifact, kind)` and `AbuseIPDBClient.lookup(artifact)`. Both check the key in the constructor (`ValueError`), and raise `ProviderUnavailableError` on 401/429 and `ProviderError` on other failures (`clients/errors.py`). VirusTotal returns `None` on 404.
+- **`clients/`**: `VirusTotalClient.lookup(artifact, kind)` and `AbuseIPDBClient.lookup(artifact)`. Both check the key in the constructor (`ValueError`). In `_fetch` they sort failures by what a retry would do (`clients/errors.py`): `ProviderTransientError` (timeout, connection, 5xx), `ProviderRateLimitedError` (429), `ProviderUnavailableError` (401), plain `ProviderError` (other 4xx, bad body). `lookup` runs `_fetch` through `retry.call_with_retries` (2 retries at 1 s/2 s for transient; one 60 s wait for 429, then a second 429 becomes `ProviderUnavailableError`). VirusTotal also passes every attempt through `ratelimit.RateLimiter` (rolling window, `VIRUSTOTAL_RATE_PER_MIN`). VirusTotal returns `None` on 404. Clients take `sleep`/`clock` arguments (default `time.sleep`/`time.monotonic`, looked up in `__init__`) so tests control time.
 - **`normalization.py`**: merges provider dicts into one report dict per indicator (`virustotal`, `network_context`, `domain_context`, `file_context`, …). These keys are read by `report.py` **and are public in `--json` output**, so renaming one is a breaking change.
 - **`report.py`**: terminal text. `show()` turns `None` into "Unknown" (display only). `set_color()` is set once per run by the CLI.
 - **`serialize.py`**: `to_json(results)` returns `{"results": [...]}` with `null` for missing values.
@@ -77,3 +81,6 @@ cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
 - `tests/test_enrich.py` uses `FakeClient` objects instead of HTTP; `tests/test_report.py` and `tests/test_serialize.py` build results by hand.
 - argparse calls `sys.exit()` for `--help`, `--version` and usage errors, so those tests use `pytest.raises(SystemExit)` and check `.code`.
 - Module-level settings (`report._color_enabled`, the `ioc_analyzer` logger level) are set by `main()` on every run, both ways, so one test's flags can't leak into the next.
+- `tests/conftest.py` has an autouse `clock` fixture (`FakeClock`) that replaces `time.sleep` and `time.monotonic` in every test: nothing really sleeps, and `clock.sleeps` records every wait. Assert waits with it (`assert clock.sleeps == [1.0, 2.0]`). Faked sleep and clock must move together, or the rate limiter never sees time pass.
+- Log messages are checked with `caplog` (under pytest, `basicConfig` adds no stderr handler, so `capsys.err` won't see them).
+- `tests/test_secrets.py` runs the CLI with canary API keys through every outcome and asserts the keys never appear in stdout, stderr or logs. Never weaken it; if it fails, something is leaking.

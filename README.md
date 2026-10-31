@@ -17,6 +17,7 @@ Create `.env` in the repo root (it is gitignored):
 ```
 VIRUSTOTAL_API=your-key        # required
 ABUSEIPDB_API=your-key         # optional; without it, IPs get VirusTotal only
+VIRUSTOTAL_RATE_PER_MIN=4      # optional; VirusTotal calls per rolling minute, 0 = no limit
 ```
 
 ## Usage
@@ -30,14 +31,25 @@ python -m ioc_analyzer.app                                        # clipboard
 
 Choose one input source per run; text plus `--file` is a usage error.
 
-| Flag              | Effect                                       |
-| ----------------- | -------------------------------------------- |
-| `--json`          | One JSON document on stdout (shape below)    |
-| `--no-color`      | Plain text; setting `NO_COLOR` does the same |
-| `-v`, `--verbose` | Debug messages on stderr                     |
-| `--version`       | Print `ioc-analyzer <version>`               |
+| Flag              | Effect                                                                  |
+| ----------------- | ----------------------------------------------------------------------- |
+| `--json`          | One JSON document on stdout (shape below)                               |
+| `--no-color`      | Plain text; setting `NO_COLOR` does the same                            |
+| `-v`, `--verbose` | Also show debug messages on stderr (waits and retries are always shown) |
+| `--version`       | Print `ioc-analyzer <version>`                                          |
 
 stdout carries results only. Warnings, errors and debug messages go to stderr, so `--json | jq` is always safe.
+
+## Rate limits, retries and waiting
+
+The tool waits instead of failing when a provider is slow, briefly broken or rate-limited. Every wait is announced on stderr, so a quiet terminal means it is working, not hung.
+
+- **VirusTotal throttle:** at most `VIRUSTOTAL_RATE_PER_MIN` requests (default 4, the free public API limit) start in any rolling 60 s. Up to 4 IOCs go out at once; 10 IOCs take about 2 minutes. Set it to `0` if your key has no per-minute limit. Retries count against it too.
+- **Retries:** timeouts, dropped connections and HTTP 5xx are retried twice, after 1 s and 2 s. 401, 404, other 4xx and malformed responses are never retried, because the answer would be the same.
+- **HTTP 429:** the tool waits 60 s and tries once more. A second 429 means the quota is used up: that provider is skipped for the rest of the run, and the run exits 1.
+- **Worst case:** a provider that times out on every try costs about 33 s per lookup (3 × 10 s timeout + 3 s of backoff). If you run this from SOAR, set the step timeout with that in mind; a killed step returns no output at all.
+
+Only read-only lookups (HTTP GET) are ever retried.
 
 ## Exit codes
 

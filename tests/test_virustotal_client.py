@@ -78,8 +78,8 @@ def fake_get(monkeypatch):
 
 
 @pytest.fixture
-def client():
-    return VirusTotalClient(api_key="test-key", timeout=5)
+def client(clock):
+    return VirusTotalClient(api_key="test-key", timeout=5, sleep=clock.sleep)
 
 
 def vt_ip_payload():
@@ -105,18 +105,34 @@ def test_lookup_returns_none_when_not_found(client, fake_get):
     assert client.lookup("8.8.8.8", "ip") is None
 
 
-@pytest.mark.parametrize("status", [401, 429])
-def test_lookup_stops_provider_on_auth_or_quota(client, fake_get, status):
-    fake_get(FakeResponse(status))
-    with pytest.raises(ProviderUnavailableError):
+def test_lookup_stops_provider_on_rejected_key(client, fake_get, clock):
+    calls = fake_get(FakeResponse(401))
+    with pytest.raises(ProviderUnavailableError, match="API key"):
         client.lookup("8.8.8.8", "ip")
+    assert len(calls) == 1
+    assert clock.sleeps == []
+
+
+def test_lookup_429_twice_stops_provider_after_one_wait(client, fake_get, clock):
+    calls = fake_get(FakeResponse(429))
+    with pytest.raises(ProviderUnavailableError, match="quota"):
+        client.lookup("8.8.8.8", "ip")
+    assert len(calls) == 2
+    assert 60.0 in clock.sleeps
+
+
+def test_lookup_429_then_answer_succeeds(client, monkeypatch, clock):
+    get = Sequence(FakeResponse(429), FakeResponse(200, vt_ip_payload()))
+    monkeypatch.setattr(virustotal.requests, "get", get)
+    assert client.lookup("8.8.8.8", "ip")["artifact"] == "8.8.8.8"
+    assert get.calls == 2
 
 
 def test_lookup_server_error_skips_only_this_artifact(client, fake_get):
     fake_get(FakeResponse(500))
     with pytest.raises(ProviderError) as info:
         client.lookup("8.8.8.8", "ip")
-    assert type(info.value) is ProviderError
+    assert not isinstance(info.value, ProviderUnavailableError)
 
 
 def test_lookup_network_failure_is_provider_error(client, fake_get):
@@ -143,3 +159,77 @@ def test_lookup_non_object_json_is_provider_error(client, fake_get):
     fake_get(FakeResponse(200, ["not", "a", "dict"]))
     with pytest.raises(ProviderError, match="unexpected shape"):
         client.lookup("8.8.8.8", "ip")
+
+
+class Sequence:
+    """requests.get stand-in that answers with the next response (or error) each call."""
+
+    def __init__(self, *outcomes):
+        self.outcomes = list(outcomes)
+        self.calls = 0
+
+    def __call__(self, url, **kwargs):
+        self.calls += 1
+        outcome = self.outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+
+@pytest.mark.parametrize(
+    "first",
+    [FakeResponse(503), requests.Timeout("slow"), requests.ConnectionError("reset")],
+)
+def test_transient_failure_is_retried(client, monkeypatch, clock, first):
+    get = Sequence(first, FakeResponse(200, vt_ip_payload()))
+    monkeypatch.setattr(virustotal.requests, "get", get)
+
+    assert client.lookup("8.8.8.8", "ip")["artifact"] == "8.8.8.8"
+    assert get.calls == 2
+    assert clock.sleeps == [1.0]
+
+
+@pytest.mark.parametrize(
+    "response", [FakeResponse(400), FakeResponse(401), FakeResponse(404)]
+)
+def test_permanent_answers_are_not_retried(client, monkeypatch, clock, response):
+    get = Sequence(response)
+    monkeypatch.setattr(virustotal.requests, "get", get)
+
+    try:
+        client.lookup("8.8.8.8", "ip")
+    except ProviderError:
+        pass
+    assert get.calls == 1
+    assert clock.sleeps == []
+
+
+def test_server_error_on_every_try_fails_after_two_retries(client, fake_get, clock):
+    calls = fake_get(FakeResponse(500))
+    with pytest.raises(ProviderError, match="HTTP 500"):
+        client.lookup("8.8.8.8", "ip")
+    assert len(calls) == 3
+    assert clock.sleeps == [1.0, 2.0]
+
+
+def test_client_waits_for_the_rate_limit(monkeypatch, clock):
+    get = Sequence(*[FakeResponse(404)] * 3)
+    monkeypatch.setattr(virustotal.requests, "get", get)
+    client = VirusTotalClient(api_key="k", rate_per_min=2)
+
+    for _ in range(3):
+        client.lookup("8.8.8.8", "ip")
+
+    assert get.calls == 3
+    assert clock.sleeps == [60.0]
+
+
+def test_retries_count_against_the_rate_limit(monkeypatch, clock):
+    get = Sequence(FakeResponse(503), FakeResponse(404), FakeResponse(404))
+    monkeypatch.setattr(virustotal.requests, "get", get)
+    client = VirusTotalClient(api_key="k", rate_per_min=2)
+
+    client.lookup("8.8.8.8", "ip")  # t=0 fails, retry at t=1: both use the quota
+    client.lookup("1.1.1.1", "ip")  # window full until t=60
+
+    assert clock.sleeps == [1.0, 59.0]
