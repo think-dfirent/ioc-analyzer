@@ -111,11 +111,14 @@ def test_lookup_returns_parsed_result(client, fake_get, abuse_payload):
     assert result["total_reports"] == 1
 
 
-@pytest.mark.parametrize("status_code", [401, 429])
-def test_abuse_ipdb_returned_provider_unavailable(fake_get, client, status_code):
-    fake_get(FakeResponse(status_code))
+@pytest.mark.parametrize(("status_code", "requests_sent"), [(401, 1), (429, 2)])
+def test_abuse_ipdb_returned_provider_unavailable(
+    fake_get, client, status_code, requests_sent
+):
+    calls = fake_get(FakeResponse(status_code))
     with pytest.raises(ProviderUnavailableError, match=f"{status_code}"):
         client.lookup("8.8.8.8")
+    assert len(calls) == requests_sent
 
 
 def test_abuse_ipdb_return_server_error(fake_get, client):

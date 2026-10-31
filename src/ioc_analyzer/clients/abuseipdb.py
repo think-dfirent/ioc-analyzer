@@ -8,6 +8,7 @@ import requests
 from ioc_analyzer.clients.errors import (
     ProviderError,
     ProviderTransientError,
+    ProviderRateLimitedError,
     ProviderUnavailableError,
 )
 from ioc_analyzer.clients.retry import call_with_retries
@@ -86,7 +87,7 @@ class AbuseIPDBClient:
         if status == 401:
             raise ProviderUnavailableError(f"AbuseIPDB rejected the API key {status}")
         if status == 429:
-            raise ProviderUnavailableError(f"AbuseIPDB quota exceeded {status}")
+            raise ProviderRateLimitedError(f"AbuseIPDB rate limit hit ({status})")
         if status >= 500:
             raise ProviderTransientError(f"AbuseIPDB returned HTTP {status}")
         if not response.ok:

@@ -105,11 +105,27 @@ def test_lookup_returns_none_when_not_found(client, fake_get):
     assert client.lookup("8.8.8.8", "ip") is None
 
 
-@pytest.mark.parametrize("status", [401, 429])
-def test_lookup_stops_provider_on_auth_or_quota(client, fake_get, status):
-    fake_get(FakeResponse(status))
-    with pytest.raises(ProviderUnavailableError):
+def test_lookup_stops_provider_on_rejected_key(client, fake_get, clock):
+    calls = fake_get(FakeResponse(401))
+    with pytest.raises(ProviderUnavailableError, match="API key"):
         client.lookup("8.8.8.8", "ip")
+    assert len(calls) == 1
+    assert clock.sleeps == []
+
+
+def test_lookup_429_twice_stops_provider_after_one_wait(client, fake_get, clock):
+    calls = fake_get(FakeResponse(429))
+    with pytest.raises(ProviderUnavailableError, match="quota"):
+        client.lookup("8.8.8.8", "ip")
+    assert len(calls) == 2
+    assert 60.0 in clock.sleeps
+
+
+def test_lookup_429_then_answer_succeeds(client, monkeypatch, clock):
+    get = Sequence(FakeResponse(429), FakeResponse(200, vt_ip_payload()))
+    monkeypatch.setattr(virustotal.requests, "get", get)
+    assert client.lookup("8.8.8.8", "ip")["artifact"] == "8.8.8.8"
+    assert get.calls == 2
 
 
 def test_lookup_server_error_skips_only_this_artifact(client, fake_get):

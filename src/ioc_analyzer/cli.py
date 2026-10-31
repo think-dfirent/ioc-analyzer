@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 
 from ioc_analyzer import __version__
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
-from ioc_analyzer.clients.virustotal import VirusTotalClient, DEFAULT_RATE_PER_MIN
+from ioc_analyzer.clients.virustotal import DEFAULT_RATE_PER_MIN, VirusTotalClient
 from ioc_analyzer.enrich import enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
 from ioc_analyzer.report import print_analysis, print_error, set_color

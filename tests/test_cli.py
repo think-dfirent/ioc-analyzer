@@ -314,3 +314,13 @@ def test_bad_rate_limit_is_a_config_error(fake_vt, monkeypatch, capsys, value):
     assert cli.main([HASH_A]) == 2
     assert calls == []
     assert "VIRUSTOTAL_RATE_PER_MIN" in capsys.readouterr().err
+
+
+def test_vt_429_twice_disables_vt_for_the_rest_of_the_run(fake_vt, clock, capsys):
+    calls = fake_vt(429)
+
+    assert cli.main([HASH_A, HASH_B]) == 1
+
+    assert len(calls) == 2  # first hash: try, wait 60 s, try again; second: never
+    assert 60.0 in clock.sleeps
+    assert "disabled for the rest of this run" in capsys.readouterr().err

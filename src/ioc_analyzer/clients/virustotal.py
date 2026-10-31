@@ -9,6 +9,7 @@ import requests
 from ioc_analyzer.clients.errors import (
     ProviderError,
     ProviderTransientError,
+    ProviderRateLimitedError,
     ProviderUnavailableError,
 )
 from ioc_analyzer.clients.ratelimit import RateLimiter
@@ -161,7 +162,7 @@ class VirusTotalClient:
                 f"VirusTotal rejected the API key ({status})"
             )
         if status == 429:
-            raise ProviderUnavailableError(f"VirusTotal quota exceeded ({status})")
+            raise ProviderRateLimitedError(f"VirusTotal rate limit hit ({status})")
         if status >= 500:
             raise ProviderTransientError(f"VirusTotal returned HTTP {status}")
         if not response.ok:

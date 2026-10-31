@@ -3,6 +3,7 @@ import pytest
 from ioc_analyzer.clients.errors import (
     ProviderError,
     ProviderTransientError,
+    ProviderRateLimitedError,
     ProviderUnavailableError,
 )
 from ioc_analyzer.clients.retry import call_with_retries
@@ -62,3 +63,30 @@ def test_each_retry_is_logged_as_a_warning(clock, caplog):
     [record] = caplog.records
     assert record.levelname == "WARNING"
     assert record.getMessage() == "VirusTotal returned HTTP 503; retry 1/2 in 1 s"
+
+
+def test_rate_limited_once_waits_a_window_and_tries_again(clock):
+    call = answers(ProviderRateLimitedError("HTTP 429"), "data")
+    assert call_with_retries(call, sleep=clock.sleep) == "data"
+    assert clock.sleeps == [60.0]
+
+
+def test_rate_limited_twice_makes_the_provider_unavailable(clock):
+    call = answers(
+        ProviderRateLimitedError("HTTP 429"), ProviderRateLimitedError("HTTP 429")
+    )
+    with pytest.raises(ProviderUnavailableError, match="quota is probably used up"):
+        call_with_retries(call, sleep=clock.sleep)
+    assert len(call.tries) == 2
+    assert clock.sleeps == [60.0]
+
+
+def test_rate_limit_and_transient_retries_are_counted_separately(clock):
+    call = answers(
+        ProviderRateLimitedError("HTTP 429"),
+        ProviderTransientError("HTTP 503"),
+        ProviderTransientError("HTTP 503"),
+        "data",
+    )
+    assert call_with_retries(call, sleep=clock.sleep) == "data"
+    assert clock.sleeps == [60.0, 1.0, 2.0]
