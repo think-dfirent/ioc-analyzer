@@ -324,3 +324,18 @@ def test_vt_429_twice_disables_vt_for_the_rest_of_the_run(fake_vt, clock, capsys
     assert len(calls) == 2  # first hash: try, wait 60 s, try again; second: never
     assert 60.0 in clock.sleeps
     assert "disabled for the rest of this run" in capsys.readouterr().err
+
+
+def test_text_results_are_printed_as_each_lookup_finishes(fake_vt, monkeypatch, capsys):
+    fake_vt(404)
+    printed_before_request = []
+
+    def fake_get(url, **kwargs):
+        printed_before_request.append(capsys.readouterr().out)
+        return FakeResponse(404)
+
+    monkeypatch.setattr(virustotal.requests, "get", fake_get)
+
+    assert cli.main([HASH_A, HASH_B]) == 0
+    assert printed_before_request[0] == ""
+    assert HASH_A in printed_before_request[1]  # shown before the 2nd lookup began
