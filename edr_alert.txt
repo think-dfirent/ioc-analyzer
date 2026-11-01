@@ -1,0 +1,1 @@
+domains: update-check.example, j.doe, net.webclient, cdn-static.test

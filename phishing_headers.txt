@@ -1,0 +1,10 @@
+Return-Path: <billing@invoices-portal.example>
+Received: from mail.invoices-portal.example (mail.invoices-portal.example [185.220.101.4])
+	by mx1.corp.test with ESMTPS id 4XyZ12abcD; Thu, 29 Oct 2026 23:51:02 +0000
+Received: from [10.0.5.17] (unknown [10.0.5.17]) by mail.invoices-portal.example
+From: "Accounts Payable" <billing@invoices-portal.example>
+To: j.doe@corp.test
+Subject: Overdue invoice 0423 - action required
+Message-ID: <20261029235102.4XyZ12abcD@invoices-portal.example>
+Authentication-Results: mx1.corp.test; spf=fail smtp.mailfrom=invoices-portal.example; dkim=none; dmarc=fail header.from=invoices-portal.example
+X-Analyst-Note: link in body was hxxps[:]//login-microsoftonline[.]example/session?id=8841

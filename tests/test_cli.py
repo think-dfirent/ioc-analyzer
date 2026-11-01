@@ -339,3 +339,10 @@ def test_text_results_are_printed_as_each_lookup_finishes(fake_vt, monkeypatch, 
     assert cli.main([HASH_A, HASH_B]) == 0
     assert printed_before_request[0] == ""
     assert HASH_A in printed_before_request[1]  # shown before the 2nd lookup began
+
+
+def test_defanged_input_is_looked_up_refanged(fake_vt):
+    calls = fake_vt(404)
+    assert cli.main(["see hxxps[:]//evil[.]example/payload and 185.220.101[.]4"]) == 0
+    assert any(url.endswith("/ip_addresses/185.220.101.4") for url in calls)
+    assert any(url.endswith("/domains/evil.example") for url in calls)

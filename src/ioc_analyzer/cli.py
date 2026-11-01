@@ -17,6 +17,7 @@ from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.virustotal import DEFAULT_RATE_PER_MIN, VirusTotalClient
 from ioc_analyzer.enrich import iter_enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
+from ioc_analyzer.extractors import extract_indicators
 from ioc_analyzer.report import print_analysis, print_error, set_color
 from ioc_analyzer.serialize import to_json
 
@@ -157,12 +158,7 @@ def main(argv: list[str] | None = None) -> int:
     except InputError as exc:
         print_error(str(exc))
         return 2
-
-    indicators = (
-        [(ip, "ip") for ip in ip_extraction(text)]
-        + [(domain, "domain") for domain in domain_extraction(text)]
-        + [(value.lower(), "file") for value in hash_extraction(text)]
-    )
+    indicators = extract_indicators(text)
     logger.debug(
         "extracted %d indicator(s): %s",
         len(indicators),

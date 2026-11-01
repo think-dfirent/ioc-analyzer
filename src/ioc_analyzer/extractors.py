@@ -135,3 +135,19 @@ def hash_extraction(text):
 
     hash_list = md5_re.findall(text) + (sha1_re.findall(text)) + sha256_re.findall(text)
     return hash_list
+
+
+def extract_indicators(text: str) -> list[tuple[str, str]]:
+    """Refang the text, then return each unique (value, kind) in a stable order.
+
+    kind is "ip", "domain" or "file" (a hash). Hashes are lowercased so the same
+    hash in upper and lower case counts once. Order: IPs, domains, hashes, each
+    in the order they first appear.
+    """
+    text = refang(text)
+    found = (
+        [(ip, "ip") for ip in ip_extraction(text)]
+        + [(domain, "domain") for domain in domain_extraction(text)]
+        + [(value.lower(), "file") for value in hash_extraction(text)]
+    )
+    return list(dict.fromkeys(found))
