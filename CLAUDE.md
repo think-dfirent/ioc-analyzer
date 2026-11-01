@@ -39,6 +39,10 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - Version lives in `ioc_analyzer/__init__.py` (`__version__`); keep pyproject.toml in sync by hand until Phase 7 makes it the single source.
 - Text output prints each result as soon as its lookup finishes; `--json` prints one document when the run ends.
 
+- Defanged IOCs are refanged before extraction. Only bracketed markers count (`[.]` `(.)` `{.}` `[dot]` `(dot)` `{dot}` `[:]` `[://]`) plus `hxxp`/`hxxps`; bare words and spaces are never treated as defangs.
+- Output (text and JSON) always shows the real, refanged value.
+- Test fixtures are synthetic: never paste real alert text, customer names, internal hosts or usernames into this public repo. Use `.example`/`.test` domains, EICAR hashes, and IPs already published in public reports.
+
 ## What this is
 
 A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) out of free text, looks them up on VirusTotal and AbuseIPDB, and prints a report per indicator (colored text, or JSON with `--json`). User-facing usage, the JSON shape and exit codes are in `README.md`.
