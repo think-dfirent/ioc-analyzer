@@ -143,3 +143,12 @@ def test_abuseipdb_status_per_kind_and_configuration():
     assert ip_with.abuse_status == "ok"
     assert ip_without.abuse_status == "unavailable"  # no key configured
     assert file.abuse_status is None  # AbuseIPDB does not cover hashes
+
+
+def test_iter_enrich_looks_up_one_indicator_per_result():
+    vt = FakeClient({})
+    results = iter_enrich([(HASH, "file"), ("b" * 64, "file")], vt)
+
+    assert vt.calls == []  # nothing happens until a result is asked for
+    next(results)
+    assert vt.calls == [HASH]  # the second lookup has not started yet
