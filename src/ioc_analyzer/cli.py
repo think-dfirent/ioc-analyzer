@@ -76,8 +76,9 @@ def configure_logging(verbose: bool) -> None:
 
     INFO is on by default so waits and retries are visible; a terminal that
     goes quiet for a minute looks hung."""
-
-    logging.basicConfig(format="%(levelname)s %(name)s: %(message)s")
+    logging.basicConfig(
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S"
+    )
     level = logging.DEBUG if verbose else logging.INFO
     logging.getLogger("ioc_analyzer").setLevel(level)
 
