@@ -4,54 +4,12 @@ from urllib.parse import urlsplit
 from functools import cache
 from importlib.resources import files
 
-# the non-domain file extensions
-FILE_EXTENSIONS = frozenset(
-    {
-        "exe",
-        "dll",
-        "scr",
-        "msi",
-        "bat",
-        "cmd",
-        "vbs",
-        "js",
-        "jar",
-        "hta",
-        "lnk",
-        "doc",
-        "docx",
-        "docm",
-        "xls",
-        "xlsx",
-        "xlsm",
-        "ppt",
-        "pptx",
-        "pdf",
-        "rtf",
-        "txt",
-        "log",
-        "csv",
-        "json",
-        "xml",
-        "html",
-        "htm",
-        "yaml",
-        "yml",
-        "ini",
-        "cfg",
-        "iso",
-        "img",
-        "rar",
-        "gz",
-        "tar",
-        "eml",
-        "msg",
-        "tmp",
-        "bin",
-        "dat",
-        "sys",
-    }
-)
+# Real TLDs that, in alert text, are almost always a file name: detect.py,
+# script.ps, invoice.one (OneNote), update.cab. Any other file extension
+# (exe, docm, pdf, ...) is not a TLD, so the TLD check already rejects it.
+# .zip, .mov, .sh and .app stay domains on purpose: attackers register them
+# precisely because they look like file names.
+FILE_LIKE_TLDS = frozenset({"py", "ps", "one", "cab"})
 
 _DEFANGED_SCHEME = re.compile(r"\bhxxp(s?)(?=\[?:)", re.IGNORECASE)
 _DEFANGED_COLON = re.compile(r"\[(://|:)\]")
@@ -147,14 +105,15 @@ def known_tlds() -> frozenset[str]:
 def is_domain(value: str) -> bool:
     """True if value looks like a domain whose TLD really exists.
 
-    The TLD check is what stops user names (j.doe), code (Net.WebClient) and
-    header fields (smtp.mailfrom) from being looked up as domains. The file
-    extension check stays for real TLDs that are mostly file names in alerts.
+    The TLD check is what stops user names (j.doe), code (Net.WebClient),
+    header fields (smtp.mailfrom) and file names (payload.exe) from being
+    looked up as domains. FILE_LIKE_TLDS covers real TLDs that are file names.
     """
+
     if len(value) > 253 or not DOMAIN_REGEX.fullmatch(value):
         return False
     tld = value.rsplit(".", 1)[1].lower()
-    return tld in known_tlds() and tld not in FILE_EXTENSIONS
+    return tld in known_tlds() and tld not in FILE_LIKE_TLDS
 
 
 def hash_extraction(text):
