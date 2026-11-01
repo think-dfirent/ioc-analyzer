@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 from ioc_analyzer import __version__
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.virustotal import DEFAULT_RATE_PER_MIN, VirusTotalClient
-from ioc_analyzer.enrich import enrich
+from ioc_analyzer.enrich import iter_enrich
 from ioc_analyzer.extractors import domain_extraction, hash_extraction, ip_extraction
 from ioc_analyzer.report import print_analysis, print_error, set_color
 from ioc_analyzer.serialize import to_json
@@ -174,18 +174,22 @@ def main(argv: list[str] | None = None) -> int:
             "No supported IOCs found (public IPv4, domain, MD5, SHA1, SHA256).",
             file=sys.stderr,
         )
-    results = enrich(indicators, vt_client, abuse_client)
+    results = []
+    # Text mode prints each result as soon as it is ready; JSON mode must wait,
+    # because the whole run is one document.
+    for result in iter_enrich(indicators, vt_client, abuse_client):
+        results.append(result)
+        for error in result.errors:
+            print_error(error)
+        if args.json:
+            continue
+        if result.report is not None:
+            print_analysis(result.report)
+        elif result.not_found:
+            print(f"{result.indicator}: no VirusTotal record found")
+        # When stdout is a pipe or file, Python holds output in a buffer;
+        # flush so each result appears now, not when the run ends.
+        sys.stdout.flush()
     if args.json:
-        for result in results:
-            for error in result.errors:
-                print_error(error)
         print(to_json(results))
-    else:
-        for result in results:
-            for error in result.errors:
-                print_error(error)
-            if result.report is not None:
-                print_analysis(result.report)
-            elif result.not_found:
-                print(f"{result.indicator}: no VirusTotal record found")
     return 1 if any(result.failed for result in results) else 0

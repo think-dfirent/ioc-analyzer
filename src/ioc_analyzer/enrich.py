@@ -3,7 +3,7 @@ Nothing here prints or exits. Problems come back as data in EnrichmentResult.err
 and the caller decides how to show them.
 """
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
 from functools import partial
 from typing import Any, Literal, Protocol
@@ -90,12 +90,23 @@ def enrich(
     vt_client: VTLookup,
     abuse_client: IPLookup | None = None,
 ) -> list[EnrichmentResult]:
-    """Look up each unique indicator and return one result per indicator, in order.
+    """Look up every indicator and return all results at once (see iter_enrich)."""
+    return list(iter_enrich(indicators, vt_client, abuse_client))
 
-    A provider that raises ProviderUnavailableError (401/429) is not called again
-    for the rest of this run. abuse_client=None means AbuseIPDB is not configured.
+
+def iter_enrich(
+    indicators: Iterable[tuple[str, Kind]],
+    vt_client: VTLookup,
+    abuse_client: IPLookup | None = None,
+) -> Iterator[EnrichmentResult]:
+    """Look up each unique indicator and yield its result as soon as it is ready.
+
+    Lazy: the next lookup only starts when the caller asks for the next result,
+    so a caller can print each result while later ones are still waiting on a
+    rate limit. A provider that raises ProviderUnavailableError is not called
+    again for the rest of this run. abuse_client=None means AbuseIPDB is not
+    configured.
     """
-    results: list[EnrichmentResult] = []
     vt_enabled = True
     abuse_enabled = abuse_client is not None
 
@@ -141,14 +152,11 @@ def enrich(
             else:
                 report = normalize_file_result(vt)
 
-        results.append(
-            EnrichmentResult(
-                indicator=artifact,
-                kind=kind,
-                report=report,
-                vt_status=vt_status,
-                abuse_status=abuse_status,
-                errors=tuple(errors),
-            )
+        yield EnrichmentResult(
+            indicator=artifact,
+            kind=kind,
+            report=report,
+            vt_status=vt_status,
+            abuse_status=abuse_status,
+            errors=tuple(errors),
         )
-    return results

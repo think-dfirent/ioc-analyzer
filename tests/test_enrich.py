@@ -1,7 +1,7 @@
 import pytest
 
 from ioc_analyzer.clients.errors import ProviderError, ProviderUnavailableError
-from ioc_analyzer.enrich import EnrichmentResult, enrich
+from ioc_analyzer.enrich import EnrichmentResult, enrich, iter_enrich
 
 HASH = "a" * 64
 
