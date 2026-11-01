@@ -51,6 +51,23 @@ FILE_EXTENSIONS = frozenset(
     }
 )
 
+_DEFANGED_SCHEME = re.compile(r"\bhxxp(s?)(?=\[?:)", re.IGNORECASE)
+_DEFANGED_COLON = re.compile(r"\[(://|:)\]")
+_DEFANGED_DOT = re.compile(
+    r"\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\)|\{dot\}", re.IGNORECASE
+)
+
+
+def refang(text: str) -> str:
+    """Undo common defanging so the extractors see real IOCs.
+    hxxp/hxxps -> http/https, [:] and [://] -> : and ://,
+    [.] (.) {.} [dot] (dot) {dot} -> .
+    Text without these markers is returned unchanged.
+    """
+    text = _DEFANGED_SCHEME.sub(r"http\1", text)
+    text = _DEFANGED_COLON.sub(r"\1", text)
+    return _DEFANGED_DOT.sub(".", text)
+
 
 def ip_extraction(text):
     ip_re = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
