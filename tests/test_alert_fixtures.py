@@ -47,12 +47,9 @@ def test_phishing_headers_find_sender_infrastructure_and_defanged_link():
     assert ("10.0.5.17", "ip") not in found
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="known false positives: user names (CORP\\j.doe, j.doe@...), "
-    "code (Net.WebClient) and header fields (smtp.mailfrom) look like domains",
-)
 @pytest.mark.parametrize("name", ["edr_alert.txt", "phishing_headers.txt"])
 def test_no_false_positive_domains(name):
+    # User names (CORP\j.doe, j.doe@...), code (Net.WebClient) and header fields
+    # (smtp.mailfrom) look like domains; their "TLDs" don't exist.
     domains = {value for value, kind in extract(name) if kind == "domain"}
     assert not domains & {"j.doe", "net.webclient", "smtp.mailfrom", "header.from"}

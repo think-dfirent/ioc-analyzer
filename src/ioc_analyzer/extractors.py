@@ -1,6 +1,8 @@
 import ipaddress
 import re
 from urllib.parse import urlsplit
+from functools import cache
+from importlib.resources import files
 
 # the non-domain file extensions
 FILE_EXTENSIONS = frozenset(
@@ -121,11 +123,38 @@ _TLD = r"(?:[a-zA-Z]{2,63}|xn--[a-zA-Z0-9]{2,59})"
 DOMAIN_REGEX = re.compile(rf"(?:{_LABEL}\.)+{_TLD}", re.IGNORECASE)
 
 
+# Reserved for documentation and tests (RFC 2606); not in the root zone, but
+# the fixtures use them, and a lookup of one is harmless (VirusTotal says 404).
+RESERVED_TLDS = frozenset({"example", "test"})
+
+
+@cache
+def known_tlds() -> frozenset[str]:
+    """Every real top-level domain, from IANA's list bundled in data/tlds.txt.
+
+    Read once per process (@cache). To refresh, download
+    https://data.iana.org/TLD/tlds-alpha-by-domain.txt over the bundled file.
+    """
+    text = files("ioc_analyzer").joinpath("data/tlds.txt").read_text(encoding="ascii")
+    tlds = {
+        line.strip().lower()
+        for line in text.splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    return frozenset(tlds) | RESERVED_TLDS
+
+
 def is_domain(value: str) -> bool:
+    """True if value looks like a domain whose TLD really exists.
+
+    The TLD check is what stops user names (j.doe), code (Net.WebClient) and
+    header fields (smtp.mailfrom) from being looked up as domains. The file
+    extension check stays for real TLDs that are mostly file names in alerts.
+    """
     if len(value) > 253 or not DOMAIN_REGEX.fullmatch(value):
         return False
     tld = value.rsplit(".", 1)[1].lower()
-    return tld not in FILE_EXTENSIONS
+    return tld in known_tlds() and tld not in FILE_EXTENSIONS
 
 
 def hash_extraction(text):

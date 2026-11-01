@@ -38,6 +38,7 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - `--json` output has no colors and nothing but JSON on stdout; warnings go to stderr.
 - Version lives in `ioc_analyzer/__init__.py` (`__version__`); keep pyproject.toml in sync by hand until Phase 7 makes it the single source.
 - Text output prints each result as soon as its lookup finishes; `--json` prints one document when the run ends.
+- A domain counts only if its TLD is in IANA's list (bundled `src/ioc_analyzer/data/tlds.txt`) or is `.example`/`.test`. Refresh the file by downloading it again; never edit it by hand.
 
 - Defanged IOCs are refanged before extraction. Only bracketed markers count (`[.]` `(.)` `{.}` `[dot]` `(dot)` `{dot}` `[:]` `[://]`) plus `hxxp`/`hxxps`; bare words and spaces are never treated as defangs.
 - Output (text and JSON) always shows the real, refanged value.
