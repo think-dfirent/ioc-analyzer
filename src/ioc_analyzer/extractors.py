@@ -1,8 +1,8 @@
 import ipaddress
 import re
-from urllib.parse import urlsplit
 from functools import cache
 from importlib.resources import files
+from urllib.parse import urlsplit
 
 # Real TLDs that, in alert text, are almost always a file name: detect.py,
 # script.ps, invoice.one (OneNote), update.cab. Any other file extension
