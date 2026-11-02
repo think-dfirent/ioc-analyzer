@@ -1,8 +1,7 @@
+import importlib.metadata
 import io
 import json
 import logging
-import tomllib
-from pathlib import Path
 
 import pytest
 
@@ -219,11 +218,10 @@ def test_version_prints_name_and_version_without_api_keys(monkeypatch, capsys):
     assert capsys.readouterr().out == f"ioc-analyzer {__version__}\n"
 
 
-def test_version_matches_pyproject():
-    # Two copies of the version exist until Phase 7; this test stops them drifting apart.
-    pyproject = Path(__file__).parents[1] / "pyproject.toml"
-    with pyproject.open("rb") as f:
-        assert tomllib.load(f)["project"]["version"] == __version__
+def test_version_comes_from_the_installed_package():
+    # Fails with PackageNotFoundError if the package is not installed:
+    # run `pip install -e . --group dev` first.
+    assert __version__ == importlib.metadata.version("ioc-analyzer")
 
 
 def test_no_color_flag_turns_color_off_for_that_run_only(fake_vt, monkeypatch):

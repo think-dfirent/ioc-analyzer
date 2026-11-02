@@ -1,8 +1,36 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
 [project]
 name = "ioc-analyzer"
 version = "0.0.1"
+description = "Extract IOCs from alert text and enrich them with VirusTotal and AbuseIPDB."
+readme = "README.md"
+requires-python = ">=3.12"
 dependencies = [
-    "requests",
-    "python-dotenv",
-    "pyperclip",
+    "requests>=2.32",
+    "python-dotenv>=1.0",
+    "pyperclip>=1.9",
 ]
+
+[project.scripts]
+ioc-analyzer = "ioc_analyzer.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "ruff>=0.11",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ioc_analyzer"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+# Explicit, so every ruff version (yours, CI's) checks the same rules.
+# Phase 8 decides whether to add more.
+select = ["E4", "E7", "E9", "F", "I"]
