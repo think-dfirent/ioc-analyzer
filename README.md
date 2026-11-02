@@ -39,6 +39,21 @@ Choose one input source per run; text plus `--file` is a usage error.
 | `--version`       | Print `ioc-analyzer <version>`                                          |
 
 stdout carries results only. Warnings, errors and debug messages go to stderr, so `--json | jq` is always safe.
+Example:
+python -m ioc_analyzer.app "C2: hxxps[:]//update-check[.]example and 185.220.101[.]4" # defanged
+
+## What gets extracted
+
+- **IPv4** addresses that are public (`8.8.8.8`); private and reserved ranges (`10.x`, `192.168.x`, documentation ranges) are skipped. IPv6 is not supported yet.
+- **Domains** whose top-level domain really exists (IANA's list, bundled in `src/ioc_analyzer/data/tlds.txt`), plus the reserved `.example` and `.test`. This keeps user names (`CORP\j.doe`), code (`Net.WebClient`) and file names (`payload.exe`, `detect.py`, `invoice.one`) out of your lookups. `.zip`, `.mov`, `.sh` and `.app` are treated as domains, because attackers register them to look like files. Hostnames inside URLs are extracted; paths and query strings are ignored.
+- **Hashes:** MD5, SHA1 and SHA256, any case.
+- **Defanged IOCs** are read as real ones: `hxxp://`, `hxxps://`, `[.]`, `(.)`, `{.}`, `[dot]`, `(dot)`, `{dot}`, `[:]`, `[://]`. Only bracketed markers count; "evil dot com" or "evil . com" is left alone. Results always show the real (refanged) value.
+
+Each IOC is looked up once per run, however often it appears.
+
+To refresh the TLD list (a few new TLDs appear each year):
+
+    Invoke-WebRequest https://data.iana.org/TLD/tlds-alpha-by-domain.txt -OutFile src\ioc_analyzer\data\tlds.txt
 
 ## Rate limits, retries and waiting
 

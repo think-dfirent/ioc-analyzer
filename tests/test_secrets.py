@@ -2,6 +2,7 @@
 
 import pytest
 import requests
+
 from ioc_analyzer import cli
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.virustotal import VirusTotalClient

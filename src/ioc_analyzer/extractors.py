@@ -1,55 +1,32 @@
 import ipaddress
 import re
+from functools import cache
+from importlib.resources import files
 from urllib.parse import urlsplit
 
-# the non-domain file extensions
-FILE_EXTENSIONS = frozenset(
-    {
-        "exe",
-        "dll",
-        "scr",
-        "msi",
-        "bat",
-        "cmd",
-        "vbs",
-        "js",
-        "jar",
-        "hta",
-        "lnk",
-        "doc",
-        "docx",
-        "docm",
-        "xls",
-        "xlsx",
-        "xlsm",
-        "ppt",
-        "pptx",
-        "pdf",
-        "rtf",
-        "txt",
-        "log",
-        "csv",
-        "json",
-        "xml",
-        "html",
-        "htm",
-        "yaml",
-        "yml",
-        "ini",
-        "cfg",
-        "iso",
-        "img",
-        "rar",
-        "gz",
-        "tar",
-        "eml",
-        "msg",
-        "tmp",
-        "bin",
-        "dat",
-        "sys",
-    }
+# Real TLDs that, in alert text, are almost always a file name: detect.py,
+# script.ps, invoice.one (OneNote), update.cab. Any other file extension
+# (exe, docm, pdf, ...) is not a TLD, so the TLD check already rejects it.
+# .zip, .mov, .sh and .app stay domains on purpose: attackers register them
+# precisely because they look like file names.
+FILE_LIKE_TLDS = frozenset({"py", "ps", "one", "cab"})
+
+_DEFANGED_SCHEME = re.compile(r"\bhxxp(s?)(?=\[?:)", re.IGNORECASE)
+_DEFANGED_COLON = re.compile(r"\[(://|:)\]")
+_DEFANGED_DOT = re.compile(
+    r"\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\)|\{dot\}", re.IGNORECASE
 )
+
+
+def refang(text: str) -> str:
+    """Undo common defanging so the extractors see real IOCs.
+    hxxp/hxxps -> http/https, [:] and [://] -> : and ://,
+    [.] (.) {.} [dot] (dot) {dot} -> .
+    Text without these markers is returned unchanged.
+    """
+    text = _DEFANGED_SCHEME.sub(r"http\1", text)
+    text = _DEFANGED_COLON.sub(r"\1", text)
+    return _DEFANGED_DOT.sub(".", text)
 
 
 def ip_extraction(text):
@@ -104,11 +81,39 @@ _TLD = r"(?:[a-zA-Z]{2,63}|xn--[a-zA-Z0-9]{2,59})"
 DOMAIN_REGEX = re.compile(rf"(?:{_LABEL}\.)+{_TLD}", re.IGNORECASE)
 
 
+# Reserved for documentation and tests (RFC 2606); not in the root zone, but
+# the fixtures use them, and a lookup of one is harmless (VirusTotal says 404).
+RESERVED_TLDS = frozenset({"example", "test"})
+
+
+@cache
+def known_tlds() -> frozenset[str]:
+    """Every real top-level domain, from IANA's list bundled in data/tlds.txt.
+
+    Read once per process (@cache). To refresh, download
+    https://data.iana.org/TLD/tlds-alpha-by-domain.txt over the bundled file.
+    """
+    text = files("ioc_analyzer").joinpath("data/tlds.txt").read_text(encoding="ascii")
+    tlds = {
+        line.strip().lower()
+        for line in text.splitlines()
+        if line.strip() and not line.startswith("#")
+    }
+    return frozenset(tlds) | RESERVED_TLDS
+
+
 def is_domain(value: str) -> bool:
+    """True if value looks like a domain whose TLD really exists.
+
+    The TLD check is what stops user names (j.doe), code (Net.WebClient),
+    header fields (smtp.mailfrom) and file names (payload.exe) from being
+    looked up as domains. FILE_LIKE_TLDS covers real TLDs that are file names.
+    """
+
     if len(value) > 253 or not DOMAIN_REGEX.fullmatch(value):
         return False
     tld = value.rsplit(".", 1)[1].lower()
-    return tld not in FILE_EXTENSIONS
+    return tld in known_tlds() and tld not in FILE_LIKE_TLDS
 
 
 def hash_extraction(text):
@@ -118,3 +123,19 @@ def hash_extraction(text):
 
     hash_list = md5_re.findall(text) + (sha1_re.findall(text)) + sha256_re.findall(text)
     return hash_list
+
+
+def extract_indicators(text: str) -> list[tuple[str, str]]:
+    """Refang the text, then return each unique (value, kind) in a stable order.
+
+    kind is "ip", "domain" or "file" (a hash). Hashes are lowercased so the same
+    hash in upper and lower case counts once. Order: IPs, domains, hashes, each
+    in the order they first appear.
+    """
+    text = refang(text)
+    found = (
+        [(ip, "ip") for ip in ip_extraction(text)]
+        + [(domain, "domain") for domain in domain_extraction(text)]
+        + [(value.lower(), "file") for value in hash_extraction(text)]
+    )
+    return list(dict.fromkeys(found))

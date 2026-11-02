@@ -38,6 +38,11 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - `--json` output has no colors and nothing but JSON on stdout; warnings go to stderr.
 - Version lives in `ioc_analyzer/__init__.py` (`__version__`); keep pyproject.toml in sync by hand until Phase 7 makes it the single source.
 - Text output prints each result as soon as its lookup finishes; `--json` prints one document when the run ends.
+- A domain counts only if its TLD is in IANA's list (bundled `src/ioc_analyzer/data/tlds.txt`) or is `.example`/`.test`. Refresh the file by downloading it again; never edit it by hand.
+
+- Defanged IOCs are refanged before extraction. Only bracketed markers count (`[.]` `(.)` `{.}` `[dot]` `(dot)` `{dot}` `[:]` `[://]`) plus `hxxp`/`hxxps`; bare words and spaces are never treated as defangs.
+- Output (text and JSON) always shows the real, refanged value.
+- Test fixtures are synthetic: never paste real alert text, customer names, internal hosts or usernames into this public repo. Use `.example`/`.test` domains, EICAR hashes, and IPs already published in public reports.
 
 ## What this is
 
@@ -69,7 +74,7 @@ cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
 ```
 
 - **`cli.py`** is the only module that touches the outside world: argv (`build_parser`), input (`read_text`: `--file`, `-` for stdin, text, clipboard), `.env`, logging setup (`configure_logging`), stdout/stderr and the exit code. `app.py` is a thin wrapper kept so `python -m ioc_analyzer.app` keeps working until Phase 7 adds a console script.
-- **`extractors.py`**: regex-based `ip_extraction` (keeps only `ipaddress.is_global`), `domain_extraction` (consumes full URLs first and keeps only the hostname), `hash_extraction`.
+- **`extractors.py`**: `extract_indicators(text)` is the entry point. It calls `refang()` (bracketed markers and `hxxp` only), runs `ip_extraction` (public IPv4 only), `domain_extraction` (hostnames out of URLs first, then bare names) and `hash_extraction`, lowercases hashes and removes duplicates. `is_domain` requires a real TLD from `data/tlds.txt` (IANA, read once via `importlib.resources` and `@cache`) or `.example`/`.test`, and rejects `FILE_LIKE_TLDS` (`py`, `ps`, `one`, `cab`). `data/tlds.txt` must ship with the package (Phase 7).
 - **`enrich.py`**: `enrich(indicators, vt_client, abuse_client)` returns one frozen `EnrichmentResult` per unique indicator. It holds `vt_status`/`abuse_status` (`ok`/`not_found`/`unavailable`/`error`; `abuse_status` is `None` for non-IPs), `report` and `errors`. It never prints or exits. Clients are typed as Protocols (`VTLookup`, `IPLookup`), so tests pass fakes.
 - **`clients/`**: `VirusTotalClient.lookup(artifact, kind)` and `AbuseIPDBClient.lookup(artifact)`. Both check the key in the constructor (`ValueError`). In `_fetch` they sort failures by what a retry would do (`clients/errors.py`): `ProviderTransientError` (timeout, connection, 5xx), `ProviderRateLimitedError` (429), `ProviderUnavailableError` (401), plain `ProviderError` (other 4xx, bad body). `lookup` runs `_fetch` through `retry.call_with_retries` (2 retries at 1 s/2 s for transient; one 60 s wait for 429, then a second 429 becomes `ProviderUnavailableError`). VirusTotal also passes every attempt through `ratelimit.RateLimiter` (rolling window, `VIRUSTOTAL_RATE_PER_MIN`). VirusTotal returns `None` on 404. Clients take `sleep`/`clock` arguments (default `time.sleep`/`time.monotonic`, looked up in `__init__`) so tests control time.
 - **`normalization.py`**: merges provider dicts into one report dict per indicator (`virustotal`, `network_context`, `domain_context`, `file_context`, …). These keys are read by `report.py` **and are public in `--json` output**, so renaming one is a breaking change.
@@ -85,3 +90,4 @@ cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
 - `tests/conftest.py` has an autouse `clock` fixture (`FakeClock`) that replaces `time.sleep` and `time.monotonic` in every test: nothing really sleeps, and `clock.sleeps` records every wait. Assert waits with it (`assert clock.sleeps == [1.0, 2.0]`). Faked sleep and clock must move together, or the rate limiter never sees time pass.
 - Log messages are checked with `caplog` (under pytest, `basicConfig` adds no stderr handler, so `capsys.err` won't see them).
 - `tests/test_secrets.py` runs the CLI with canary API keys through every outcome and asserts the keys never appear in stdout, stderr or logs. Never weaken it; if it fails, something is leaking.
+- `tests/fixtures/` holds synthetic alert text (EDR alert, phishing headers) used by `tests/test_alert_fixtures.py`. Follow the fixture Decision: nothing copied from real alerts. True-positive checks use subset asserts (`<=`); false positives get their own test, so a known bug can be parked with `xfail(strict=True)`.
