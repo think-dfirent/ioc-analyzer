@@ -36,7 +36,11 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - Exit codes: 0 = every lookup answered (404 counts as an answer; no IOCs found counts too), 1 = some lookup failed (results may be partial), 2 = usage/config error (bad args, missing VT key, unreadable file or clipboard).
 - `--json`: missing values are `null`, never "Unknown" (that is display-only, in report.py); each provider has a `status`: ok / not_found / unavailable / error.
 - `--json` output has no colors and nothing but JSON on stdout; warnings go to stderr.
-- Version lives in `ioc_analyzer/__init__.py` (`__version__`); keep pyproject.toml in sync by hand until Phase 7 makes it the single source.
+- Version lives in `pyproject.toml`; code reads it with `importlib.metadata` (fallback `"0+unknown"` when not installed).
+- Config: real environment variables win; otherwise one per-user file (`%APPDATA%\ioc-analyzer\.env`, `~/.config/ioc-analyzer/.env`), read with `dotenv_values()` and only for our own variables. The current folder is never searched (evidence folders may contain hostile files).
+- Packaging: hatchling; `data/tlds.txt` must be inside the wheel. A change to packaging is verified by installing the built wheel into a fresh venv outside the repo, not by tests alone.
+- `ioc-analyzer` is the command; `python -m ioc_analyzer` also works. `python -m ioc_analyzer.app` prints a deprecation notice and is removed in Phase 9.
+- Runtime dependencies have minimum versions only; dev tools live in `[dependency-groups]`.
 - Text output prints each result as soon as its lookup finishes; `--json` prints one document when the run ends.
 - A domain counts only if its TLD is in IANA's list (bundled `src/ioc_analyzer/data/tlds.txt`) or is `.example`/`.test`. Refresh the file by downloading it again; never edit it by hand.
 
