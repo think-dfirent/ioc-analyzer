@@ -26,7 +26,7 @@ class FakeResponse:
 
 @pytest.fixture
 def fake_vt(monkeypatch):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.setenv("VIRUSTOTAL_API", "test-key")
     monkeypatch.delenv("VIRUSTOTAL_RATE_PER_MIN", raising=False)  # use the default
     calls = []
@@ -95,7 +95,6 @@ def fake_both(monkeypatch):
     """Fake HTTP for providers: VT answers 404, AbuseIPDB answers abuse_status
     Both clients call the same requests.get, so the fake routes on the URL"""
 
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
     monkeypatch.setenv("VIRUSTOTAL_API", "test-key")
     monkeypatch.setenv("ABUSEIPDB_API", "test-key")
     abuse_calls = []
@@ -132,7 +131,7 @@ def test_app_module_is_a_thin_wrapper_around_cli():
 
 
 def test_help_works_without_api_keys(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
 
     with pytest.raises(SystemExit) as exc:
@@ -143,7 +142,7 @@ def test_help_works_without_api_keys(monkeypatch, capsys):
 
 
 def test_unknown_option_is_a_usage_error(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
 
     with pytest.raises(SystemExit) as exc:
@@ -208,7 +207,7 @@ def test_clipboard_failure_exits_2(fake_vt, monkeypatch, capsys):
 
 
 def test_version_prints_name_and_version_without_api_keys(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
 
     with pytest.raises(SystemExit) as exc:

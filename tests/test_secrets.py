@@ -42,7 +42,6 @@ OUTCOMES = {
 def test_api_keys_never_appear_in_output_or_logs(
     monkeypatch, capsys, caplog, outcome, output
 ):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
     monkeypatch.setenv("VIRUSTOTAL_API", VT_KEY)
     monkeypatch.setenv("ABUSEIPDB_API", ABUSE_KEY)
     monkeypatch.delenv("VIRUSTOTAL_RATE_PER_MIN", raising=False)

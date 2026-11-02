@@ -53,9 +53,7 @@ class AbuseIPDBClient:
         sleep: Callable[[float], None] | None = None,
     ) -> None:
         if not api_key:
-            raise ValueError(
-                "AbuseIPDB API key is missing. Set ABUSEIPDB_API in your .env file"
-            )
+            raise ValueError("AbuseIPDB API key is missing (set ABUSEIPDB_API)")
         if not 1 <= max_age_days <= 365:
             raise ValueError(
                 f"max_age_days must be between 1 and 365, got {max_age_days}"
