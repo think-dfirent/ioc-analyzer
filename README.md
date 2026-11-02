@@ -28,9 +28,12 @@ Create it from the template in this repo:
 
 ```powershell
 New-Item -ItemType Directory -Force "$env:APPDATA\ioc-analyzer" | Out-Null
-Copy-Item .env.example "$env:APPDATA\ioc-analyzer\.env"
-notepad "$env:APPDATA\ioc-analyzer\.env"             # fill in your keys
+$settings = "$env:APPDATA\ioc-analyzer\.env"
+if (-not (Test-Path $settings)) { Copy-Item .env.example $settings }   # never overwrite existing keys
+notepad $settings
 ```
+
+Fill in your keys in Notepad, **save and close it**, then continue. (Notepad opens in its own window; PowerShell does not wait for it.)
 
 | Setting                   | Required | Meaning                                                          |
 | ------------------------- | -------- | ---------------------------------------------------------------- |
