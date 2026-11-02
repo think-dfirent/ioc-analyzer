@@ -4,17 +4,16 @@ This is the only module that talks to the outside world (environment, argv, clip
 
 import argparse
 import logging
-import os
 import sys
 from collections import Counter
 from pathlib import Path
 
 import pyperclip
-from dotenv import load_dotenv
 
 from ioc_analyzer import __version__
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.virustotal import DEFAULT_RATE_PER_MIN, VirusTotalClient
+from ioc_analyzer.config import load_settings, settings_file
 from ioc_analyzer.enrich import iter_enrich
 from ioc_analyzer.extractors import extract_indicators
 from ioc_analyzer.report import print_analysis, print_error, set_color
@@ -83,13 +82,14 @@ def configure_logging(verbose: bool) -> None:
     logging.getLogger("ioc_analyzer").setLevel(level)
 
 
-def env_int(name: str, default: int) -> int:
-    """Read a whole number (0 or more) from the environment; unset or empty = default.
+def int_setting(settings: dict[str, str], name: str, default: int) -> int:
+    """Read a whole number (0 or more) from the settings; unset or empty = default.
 
     Raises ValueError naming the variable, so main() can report a config error (exit 2)
     instead of Python's "invalid literal for int() with base 10".
     """
-    raw = os.getenv(name, "").strip()
+
+    raw = settings.get(name, "").strip()
     if not raw:
         return default
     try:
@@ -137,18 +137,20 @@ def main(argv: list[str] | None = None) -> int:
     # Set every run, both ways, so one run's choice never leaks into the next.
     set_color(not args.no_color)
     configure_logging(args.verbose)
-    load_dotenv()
+    settings = load_settings()
     try:
         vt_client = VirusTotalClient(
-            api_key=os.getenv("VIRUSTOTAL_API"),
-            rate_per_min=env_int("VIRUSTOTAL_RATE_PER_MIN", DEFAULT_RATE_PER_MIN),
+            api_key=settings.get("VIRUSTOTAL_API"),
+            rate_per_min=int_setting(
+                settings, "VIRUSTOTAL_RATE_PER_MIN", DEFAULT_RATE_PER_MIN
+            ),
         )
     except ValueError as exc:
-        print_error(str(exc))
+        print_error(f"{exc}: as an environment variable or in {settings_file()}")
         return 2
     abuse_client = None
     try:
-        abuse_client = AbuseIPDBClient(api_key=os.getenv("ABUSEIPDB_API"))
+        abuse_client = AbuseIPDBClient(api_key=settings.get("ABUSEIPDB_API"))
     except ValueError as exc:
         logger.warning("%s; continuing without AbuseIPDB", exc)
 

@@ -28,3 +28,16 @@ def clock(monkeypatch):
     monkeypatch.setattr(time, "sleep", fake.sleep)
     monkeypatch.setattr(time, "monotonic", fake.monotonic)
     return fake
+
+
+@pytest.fixture(autouse=True)
+def isolated_settings(monkeypatch, tmp_path):
+    """No test reads the developer's real settings file or real keys.
+
+    The settings file location is pointed at an empty temp folder, and our
+    variables are removed from the environment; a test sets what it needs.
+    """
+    monkeypatch.setenv("APPDATA", str(tmp_path / "appdata"))
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    for name in ("VIRUSTOTAL_API", "ABUSEIPDB_API", "VIRUSTOTAL_RATE_PER_MIN"):
+        monkeypatch.delenv(name, raising=False)

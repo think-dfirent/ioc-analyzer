@@ -1,8 +1,7 @@
+import importlib.metadata
 import io
 import json
 import logging
-import tomllib
-from pathlib import Path
 
 import pytest
 
@@ -27,7 +26,7 @@ class FakeResponse:
 
 @pytest.fixture
 def fake_vt(monkeypatch):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.setenv("VIRUSTOTAL_API", "test-key")
     monkeypatch.delenv("VIRUSTOTAL_RATE_PER_MIN", raising=False)  # use the default
     calls = []
@@ -96,7 +95,6 @@ def fake_both(monkeypatch):
     """Fake HTTP for providers: VT answers 404, AbuseIPDB answers abuse_status
     Both clients call the same requests.get, so the fake routes on the URL"""
 
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
     monkeypatch.setenv("VIRUSTOTAL_API", "test-key")
     monkeypatch.setenv("ABUSEIPDB_API", "test-key")
     abuse_calls = []
@@ -133,7 +131,7 @@ def test_app_module_is_a_thin_wrapper_around_cli():
 
 
 def test_help_works_without_api_keys(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
 
     with pytest.raises(SystemExit) as exc:
@@ -144,7 +142,7 @@ def test_help_works_without_api_keys(monkeypatch, capsys):
 
 
 def test_unknown_option_is_a_usage_error(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
 
     with pytest.raises(SystemExit) as exc:
@@ -209,7 +207,7 @@ def test_clipboard_failure_exits_2(fake_vt, monkeypatch, capsys):
 
 
 def test_version_prints_name_and_version_without_api_keys(monkeypatch, capsys):
-    monkeypatch.setattr(cli, "load_dotenv", lambda: None)
+
     monkeypatch.delenv("VIRUSTOTAL_API", raising=False)
 
     with pytest.raises(SystemExit) as exc:
@@ -219,11 +217,10 @@ def test_version_prints_name_and_version_without_api_keys(monkeypatch, capsys):
     assert capsys.readouterr().out == f"ioc-analyzer {__version__}\n"
 
 
-def test_version_matches_pyproject():
-    # Two copies of the version exist until Phase 7; this test stops them drifting apart.
-    pyproject = Path(__file__).parents[1] / "pyproject.toml"
-    with pyproject.open("rb") as f:
-        assert tomllib.load(f)["project"]["version"] == __version__
+def test_version_comes_from_the_installed_package():
+    # Fails with PackageNotFoundError if the package is not installed:
+    # run `pip install -e . --group dev` first.
+    assert __version__ == importlib.metadata.version("ioc-analyzer")
 
 
 def test_no_color_flag_turns_color_off_for_that_run_only(fake_vt, monkeypatch):

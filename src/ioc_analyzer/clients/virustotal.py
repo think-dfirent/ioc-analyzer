@@ -116,9 +116,7 @@ class VirusTotalClient:
         clock: Callable[[], float] | None = None,
     ) -> None:
         if not api_key:
-            raise ValueError(
-                "VirusTotal API key is missing. Set VIRUSTOTAL_API in your .env file."
-            )
+            raise ValueError("VirusTotal API key is missing (set VIRUSTOTAL_API)")
         self._api_key = api_key
         self._timeout = timeout
         # looked up now, not as a default argument, so tests that replace

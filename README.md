@@ -2,31 +2,56 @@
 
 Pull IOCs (public IPv4, domains, MD5/SHA1/SHA256) out of any text — an alert, an email, a ticket — and look them up on VirusTotal and AbuseIPDB. Prints a readable report for analysts, or JSON for scripts and SOAR playbooks.
 
-## Setup
+## Install
 
-Until Phase 7 adds packaging, run it from the repo:
+Needs Python 3.12 or newer.
 
 ```powershell
-python -m venv venv; venv\Scripts\Activate.ps1
-pip install requests python-dotenv pyperclip
-$env:PYTHONPATH = "src"
+git clone https://github.com/think-dfirent/ioc-analyzer.git
+cd ioc-analyzer
+python -m venv venv; venv\Scripts\Activate.ps1      # Linux/macOS: source venv/bin/activate
+python -m pip install -U pip
+pip install .                                        # for development: pip install -e . --group dev
+ioc-analyzer --version
 ```
 
-Create `.env` in the repo root (it is gitignored):
+## Settings
 
+API keys are read from **environment variables**, or else from one **per-user settings file**:
+
+| OS            | Settings file                                                           |
+| ------------- | ----------------------------------------------------------------------- |
+| Windows       | `%APPDATA%\ioc-analyzer\.env`                                           |
+| Linux / macOS | `~/.config/ioc-analyzer/.env` (or `$XDG_CONFIG_HOME/ioc-analyzer/.env`) |
+
+Create it from the template in this repo:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:APPDATA\ioc-analyzer" | Out-Null
+$settings = "$env:APPDATA\ioc-analyzer\.env"
+if (-not (Test-Path $settings)) { Copy-Item .env.example $settings }   # never overwrite existing keys
+notepad $settings
 ```
-VIRUSTOTAL_API=your-key        # required
-ABUSEIPDB_API=your-key         # optional; without it, IPs get VirusTotal only
-VIRUSTOTAL_RATE_PER_MIN=4      # optional; VirusTotal calls per rolling minute, 0 = no limit
-```
+
+Fill in your keys in Notepad, **save and close it**, then continue. (Notepad opens in its own window; PowerShell does not wait for it.)
+
+| Setting                   | Required | Meaning                                                          |
+| ------------------------- | -------- | ---------------------------------------------------------------- |
+| `VIRUSTOTAL_API`          | yes      | VirusTotal API key                                               |
+| `ABUSEIPDB_API`           | no       | AbuseIPDB API key; without it, IPs get VirusTotal only           |
+| `VIRUSTOTAL_RATE_PER_MIN` | no       | VirusTotal requests per rolling minute (default 4; 0 = no limit) |
+
+An environment variable with the same name overrides the file, which is how a SOAR runner or CI should pass keys.
+
+**A `.env` file in your current folder is never read.** Analysts often run tools inside evidence folders, and a planted `.env` could redirect traffic (with your API key in it) through an attacker's proxy. Only the three settings above are read from the settings file; anything else in it is ignored.
 
 ## Usage
 
 ```powershell
-python -m ioc_analyzer.app "beacon to 8.8.8.8 and evil.example"   # text
-python -m ioc_analyzer.app --file alert.txt                       # UTF-8 file
-Get-Content alert.txt | python -m ioc_analyzer.app -              # stdin
-python -m ioc_analyzer.app                                        # clipboard
+python -m ioc_analyzer "beacon to 8.8.8.8 and evil.example"   # text
+python -m ioc_analyzer --file alert.txt                       # UTF-8 file
+Get-Content alert.txt | python -m ioc_analyzer -              # stdin
+python -m ioc_analyzer                                        # clipboard
 ```
 
 Choose one input source per run; text plus `--file` is a usage error.
@@ -39,8 +64,8 @@ Choose one input source per run; text plus `--file` is a usage error.
 | `--version`       | Print `ioc-analyzer <version>`                                          |
 
 stdout carries results only. Warnings, errors and debug messages go to stderr, so `--json | jq` is always safe.
-Example:
-python -m ioc_analyzer.app "C2: hxxps[:]//update-check[.]example and 185.220.101[.]4" # defanged
+
+`python -m ioc_analyzer` works the same. The old `python -m ioc_analyzer.app` still works but prints a deprecation warning; it will be removed.
 
 ## What gets extracted
 

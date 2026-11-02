@@ -36,7 +36,11 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - Exit codes: 0 = every lookup answered (404 counts as an answer; no IOCs found counts too), 1 = some lookup failed (results may be partial), 2 = usage/config error (bad args, missing VT key, unreadable file or clipboard).
 - `--json`: missing values are `null`, never "Unknown" (that is display-only, in report.py); each provider has a `status`: ok / not_found / unavailable / error.
 - `--json` output has no colors and nothing but JSON on stdout; warnings go to stderr.
-- Version lives in `ioc_analyzer/__init__.py` (`__version__`); keep pyproject.toml in sync by hand until Phase 7 makes it the single source.
+- Version lives in `pyproject.toml`; code reads it with `importlib.metadata` (fallback `"0+unknown"` when not installed).
+- Config: real environment variables win; otherwise one per-user file (`%APPDATA%\ioc-analyzer\.env`, `~/.config/ioc-analyzer/.env`), read with `dotenv_values()` and only for our own variables. The current folder is never searched (evidence folders may contain hostile files).
+- Packaging: hatchling; `data/tlds.txt` must be inside the wheel. A change to packaging is verified by installing the built wheel into a fresh venv outside the repo, not by tests alone.
+- `ioc-analyzer` is the command; `python -m ioc_analyzer` also works. `python -m ioc_analyzer.app` prints a deprecation notice and is removed in Phase 9.
+- Runtime dependencies have minimum versions only; dev tools live in `[dependency-groups]`.
 - Text output prints each result as soon as its lookup finishes; `--json` prints one document when the run ends.
 - A domain counts only if its TLD is in IANA's list (bundled `src/ioc_analyzer/data/tlds.txt`) or is `.example`/`.test`. Refresh the file by downloading it again; never edit it by hand.
 
@@ -50,19 +54,19 @@ A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) o
 
 ## Commands
 
-No packaging yet (Phase 7): dependencies are installed into `venv/` by hand and `src` is put on the path.
+The package is installed in editable mode in `venv/`; no `PYTHONPATH` needed.
 
 ```powershell
-$env:PYTHONPATH = "src"
+pip install -e . --group dev                         # setup (pip 25.1+)
 pytest -q                                            # all tests
 pytest tests/test_cli.py::test_no_iocs_is_not_a_failure   # one test
-ruff check src tests                                 # lint (see note on tomllib below)
-python -m ioc_analyzer.app --help                    # run
+ruff check src tests                                 # lint (rules set in pyproject.toml)
+ioc-analyzer --help                                  # run (or: python -m ioc_analyzer)
 ```
 
-API keys come from `.env` via `python-dotenv`: `VIRUSTOTAL_API` (required) and `ABUSEIPDB_API` (optional). `.env` is gitignored.
+Settings come from environment variables or the per-user file (see `config.py` and the README); a `.env` in the repo or current folder is not read. `.env.example` lists every setting.
 
-Known lint noise: ruff flags the import order in `tests/test_cli.py` (I001) because `pyproject.toml` has no `requires-python`, so ruff treats `tomllib` as third-party. Phase 7 fixes this; don't "fix" the import order by hand.
+Packaging check (after any change to `pyproject.toml` or to files under `src/ioc_analyzer/data/`): build the wheel, install it into a fresh venv outside the repo, run `ioc-analyzer --version` and `python -c "from ioc_analyzer.extractors import is_domain; assert is_domain('evil.com')"`.
 
 ## Architecture
 
@@ -73,7 +77,8 @@ cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
   └── serialize.py (JSON) ◄──────┘
 ```
 
-- **`cli.py`** is the only module that touches the outside world: argv (`build_parser`), input (`read_text`: `--file`, `-` for stdin, text, clipboard), `.env`, logging setup (`configure_logging`), stdout/stderr and the exit code. `app.py` is a thin wrapper kept so `python -m ioc_analyzer.app` keeps working until Phase 7 adds a console script.
+- **`cli.py`** is the only module that touches the outside world: argv (`build_parser`), input (`read_text`: `--file`, `-` for stdin, text, clipboard), settings (`config.load_settings`), logging setup (`configure_logging`), stdout/stderr and the exit code. The `ioc-analyzer` command and `__main__.py` both call `cli.main`; `app.py` is deprecated (prints a notice, removed in Phase 9).
+- **`config.py`**: `load_settings()` returns only `VIRUSTOTAL_API`, `ABUSEIPDB_API`, `VIRUSTOTAL_RATE_PER_MIN`: environment first, then the per-user file from `settings_file()`, read with `dotenv_values` (never copied into `os.environ`; the current folder is never searched).
 - **`extractors.py`**: `extract_indicators(text)` is the entry point. It calls `refang()` (bracketed markers and `hxxp` only), runs `ip_extraction` (public IPv4 only), `domain_extraction` (hostnames out of URLs first, then bare names) and `hash_extraction`, lowercases hashes and removes duplicates. `is_domain` requires a real TLD from `data/tlds.txt` (IANA, read once via `importlib.resources` and `@cache`) or `.example`/`.test`, and rejects `FILE_LIKE_TLDS` (`py`, `ps`, `one`, `cab`). `data/tlds.txt` must ship with the package (Phase 7).
 - **`enrich.py`**: `enrich(indicators, vt_client, abuse_client)` returns one frozen `EnrichmentResult` per unique indicator. It holds `vt_status`/`abuse_status` (`ok`/`not_found`/`unavailable`/`error`; `abuse_status` is `None` for non-IPs), `report` and `errors`. It never prints or exits. Clients are typed as Protocols (`VTLookup`, `IPLookup`), so tests pass fakes.
 - **`clients/`**: `VirusTotalClient.lookup(artifact, kind)` and `AbuseIPDBClient.lookup(artifact)`. Both check the key in the constructor (`ValueError`). In `_fetch` they sort failures by what a retry would do (`clients/errors.py`): `ProviderTransientError` (timeout, connection, 5xx), `ProviderRateLimitedError` (429), `ProviderUnavailableError` (401), plain `ProviderError` (other 4xx, bad body). `lookup` runs `_fetch` through `retry.call_with_retries` (2 retries at 1 s/2 s for transient; one 60 s wait for 429, then a second 429 becomes `ProviderUnavailableError`). VirusTotal also passes every attempt through `ratelimit.RateLimiter` (rolling window, `VIRUSTOTAL_RATE_PER_MIN`). VirusTotal returns `None` on 404. Clients take `sleep`/`clock` arguments (default `time.sleep`/`time.monotonic`, looked up in `__init__`) so tests control time.
@@ -91,3 +96,6 @@ cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
 - Log messages are checked with `caplog` (under pytest, `basicConfig` adds no stderr handler, so `capsys.err` won't see them).
 - `tests/test_secrets.py` runs the CLI with canary API keys through every outcome and asserts the keys never appear in stdout, stderr or logs. Never weaken it; if it fails, something is leaking.
 - `tests/fixtures/` holds synthetic alert text (EDR alert, phishing headers) used by `tests/test_alert_fixtures.py`. Follow the fixture Decision: nothing copied from real alerts. True-positive checks use subset asserts (`<=`); false positives get their own test, so a known bug can be parked with `xfail(strict=True)`.
+- `tests/conftest.py:isolated_settings` (autouse) points the settings file at an empty temp folder and removes our variables from the environment, so no test sees the developer's real keys. Tests set the variables they need with `monkeypatch.setenv`.
+- `tests/test_entry_points.py` runs `python -m ioc_analyzer` in a real subprocess (with `sys.executable`) to prove process-level behaviour: the entry point works and exit codes reach the shell. Keep these few; everything else calls `cli.main()` directly.
+- Tests need the package installed (`pip install -e .`); `test_version_comes_from_the_installed_package` fails otherwise.
