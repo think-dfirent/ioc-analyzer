@@ -4,22 +4,20 @@ This is the only module that talks to the outside world (environment, argv, clip
 
 import argparse
 import logging
-import os
 import sys
 from collections import Counter
 from pathlib import Path
 
 import pyperclip
-from dotenv import load_dotenv
 
 from ioc_analyzer import __version__
 from ioc_analyzer.clients.abuseipdb import AbuseIPDBClient
 from ioc_analyzer.clients.virustotal import DEFAULT_RATE_PER_MIN, VirusTotalClient
+from ioc_analyzer.config import load_settings, settings_file
 from ioc_analyzer.enrich import iter_enrich
 from ioc_analyzer.extractors import extract_indicators
 from ioc_analyzer.report import print_analysis, print_error, set_color
 from ioc_analyzer.serialize import to_json
-from ioc_analyzer.config import load_settings, settings_file
 
 logger = logging.getLogger(__name__)
 
