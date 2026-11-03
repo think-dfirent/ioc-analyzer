@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from ioc_analyzer import __version__, app, cli
+from ioc_analyzer import __version__, cli
 from ioc_analyzer.clients import abuseipdb, virustotal
 
 HASH_A = "a" * 64
@@ -124,10 +124,6 @@ def test_abuseipdb_server_error_fails_run_but_keeps_vt_result(fake_both, capsys)
     captured = capsys.readouterr()
     assert "No VirusTotal record" in captured.out
     assert "AbuseIPDB failed: AbuseIPDB returned HTTP 500" in captured.err
-
-
-def test_app_module_is_a_thin_wrapper_around_cli():
-    assert app.main is cli.main
 
 
 def test_help_works_without_api_keys(monkeypatch, capsys):

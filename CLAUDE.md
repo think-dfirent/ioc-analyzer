@@ -39,7 +39,7 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - Version lives in `pyproject.toml`; code reads it with `importlib.metadata` (fallback `"0+unknown"` when not installed).
 - Config: real environment variables win; otherwise one per-user file (`%APPDATA%\ioc-analyzer\.env`, `~/.config/ioc-analyzer/.env`), read with `dotenv_values()` and only for our own variables. The current folder is never searched (evidence folders may contain hostile files).
 - Packaging: hatchling; `data/tlds.txt` must be inside the wheel. A change to packaging is verified by installing the built wheel into a fresh venv outside the repo, not by tests alone.
-- `ioc-analyzer` is the command; `python -m ioc_analyzer` also works. `python -m ioc_analyzer.app` prints a deprecation notice and is removed in Phase 9.
+- `ioc-analyzer` is the command; `python -m ioc_analyzer` also works. (`python -m ioc_analyzer.app` was removed in 0.1.0.)
 - Runtime dependencies have minimum versions only; dev tools live in `[dependency-groups]`.
 - Text output prints each result as soon as its lookup finishes; `--json` prints one document when the run ends.
 - A domain counts only if its TLD is in IANA's list (bundled `src/ioc_analyzer/data/tlds.txt`) or is `.example`/`.test`. Refresh the file by downloading it again; never edit it by hand.
@@ -52,6 +52,10 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - CI matrix: Linux with Python 3.12 and 3.13, Windows with Python 3.13.
 - CI never gets real API keys and never uses `pull_request_target`. Workflow permissions are `contents: read`; actions are pinned to full commit SHAs and updated by Dependabot.
 - `main` is protected: changes land through pull requests with green CI; no direct pushes, no admin bypass.
+
+- Public interface (what SemVer protects): the `ioc-analyzer` command and flags, exit codes, JSON field names and status values, setting names and the settings-file location. Below 1.0 these may change, but every change is listed in `CHANGELOG.md`.
+- Releases are built by CI from a `vX.Y.Z` tag on `main`, attached to a GitHub Release with a build-provenance attestation. Never upload a wheel built locally. Not published to PyPI.
+- Providers: no general provider interface until a third provider is actually needed (rule of three); `docs/architecture.md` lists every place a new provider touches.
 
 ## What this is
 

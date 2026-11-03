@@ -22,14 +22,6 @@ def test_python_dash_m_package_runs_the_cli():
     assert result.stderr == ""
 
 
-def test_old_app_module_still_works_but_warns_on_stderr():
-    result = run_module("ioc_analyzer.app", "--version")
-    assert result.returncode == 0
-    assert result.stdout == f"ioc-analyzer {__version__}\n"  # output unchanged
-    assert "deprecated" in result.stderr
-    assert "ioc-analyzer" in result.stderr  # says what to use instead
-
-
 def test_exit_codes_reach_the_shell():
     result = run_module("ioc_analyzer", "--no-such-flag")
     assert result.returncode == 2

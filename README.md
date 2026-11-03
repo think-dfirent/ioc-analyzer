@@ -3,6 +3,72 @@
 [![CI](https://github.com/think-dfirent/ioc-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/think-dfirent/ioc-analyzer/actions/workflows/ci.yml)
 Pull IOCs (public IPv4, domains, MD5/SHA1/SHA256) out of any text — an alert, an email, a ticket — and look them up on VirusTotal and AbuseIPDB. Prints a readable report for analysts, or JSON for scripts and SOAR playbooks.
 
+```console
+$ ioc-analyzer "C2 8.8[.]8.8, payload 44d88612fea8a8f36de82e1278abb02f"
+======================================================================
+IOC ANALYSIS: 8.8.8.8
+TYPE: IP
+======================================================================
+
+[ VirusTotal ]
+Malicious     : 1 / 92
+Suspicious    : 0 / 92
+Reputation     : 564
+
+[ AbuseIPDB ]
+Confidence     : 0%
+Reports        : 200
+Reporters      : 72
+Last reported  : 2026-11-02T18:00:06+00:00
+
+[ Network Context ]
+Country        : US
+ASN            : AS15169
+Owner          : Google LLC
+Network        : 8.8.8.0/24
+Usage          : Content Delivery Network
+Domain         : google.com
+Tor            : No
+======================================================================
+======================================================================
+IOC ANALYSIS: 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
+TYPE: FILE
+======================================================================
+
+[ VirusTotal ]
+Malicious     : 66 / 75
+Suspicious    : 0 / 75
+Reputation     : 3800
+Threat Label   : virus.eicar/test
+
+[ File Context ]
+Name           : eicar.com-31954
+Type           : Powershell
+Extension      : ps1
+Size           : 68 bytes
+
+[ Hashes ]
+MD5            : 44d88612fea8a8f36de82e1278abb02f
+SHA1           : 3395856ce81f2b7382dee72602f798b642f14140
+SHA256         : 275a021bbfb6489e54d471899f7db9d1663fc695ec2fe2a2c4538aabf651fd0f
+
+[ Timeline ]
+First Submitted: 2006-05-22 12:42 UTC
+Last Submitted : 2026-11-03 15:54 UTC
+Last Analysis  : 2026-11-03 15:54 UTC
+
+Tags           : direct-cpu-clock-access, via-tor, idle, long-sleeps, powershell, detect-debug-environment, attachment, known-distributor
+
+[ Sandbox ]
+Zenbox        : malicious
+Lastline      : malicious
+OS X Sandbox  : malicious
+Yomi Hunter   : harmless
+======================================================================
+```
+
+Your numbers will differ: VirusTotal and AbuseIPDB results change over time.
+
 ## Install
 
 Needs Python 3.12 or newer.
@@ -49,10 +115,12 @@ An environment variable with the same name overrides the file, which is how a SO
 ## Usage
 
 ```powershell
-python -m ioc_analyzer "beacon to 8.8.8.8 and evil.example"   # text
-python -m ioc_analyzer --file alert.txt                       # UTF-8 file
-Get-Content alert.txt | python -m ioc_analyzer -              # stdin
-python -m ioc_analyzer                                        # clipboard
+ioc-analyzer "beacon to 8.8.8.8 and evil.example"                       # text
+ioc-analyzer "C2: hxxps[:]//update-check[.]example and 185.220.101[.]4"  # defanged
+ioc-analyzer --file alert.txt                                           # UTF-8 file
+Get-Content alert.txt | ioc-analyzer -                                  # stdin
+ioc-analyzer --json --file alert.txt > results.json                     # for scripts
+ioc-analyzer                                                            # clipboard
 ```
 
 Choose one input source per run; text plus `--file` is a usage error.
@@ -66,7 +134,7 @@ Choose one input source per run; text plus `--file` is a usage error.
 
 stdout carries results only. Warnings, errors and debug messages go to stderr, so `--json | jq` is always safe.
 
-`python -m ioc_analyzer` works the same. The old `python -m ioc_analyzer.app` still works but prints a deprecation warning; it will be removed.
+`python -m ioc_analyzer` works the same.
 
 ## What gets extracted
 
@@ -154,3 +222,13 @@ Only read-only lookups (HTTP GET) are ever retried.
 - No IOCs found → `{"results": []}` and exit code 0.
 
 Field names are a contract: renaming one is a breaking change.
+
+## Limitations
+
+- **Providers:** VirusTotal (IPs, domains, hashes) and AbuseIPDB (IPs only). No caching: the same IOC is looked up again on every run.
+- **Speed on a free VirusTotal key:** 4 lookups per minute, so 10 IOCs take about 2 minutes. A provider that times out on every try costs about 33 s per lookup.
+- **Not extracted:** IPv6, email addresses, full URLs (only the hostname is looked up), registry keys, file paths.
+- **Defanging:** only bracketed markers and `hxxp` are recognised; "evil dot com" is not.
+- **File-like TLDs:** `detect.py`, `invoice.one` and `update.cab` are treated as file names; `.zip`, `.mov`, `.sh` and `.app` are treated as domains, because attackers register them to look like files.
+- **Clipboard on Linux** needs `xclip` or `xsel` installed (a `pyperclip` requirement).
+- **Before 1.0**, JSON field names, flags and exit codes may still change; every change is listed in `CHANGELOG.md`.
