@@ -24,7 +24,7 @@ Most real bugs this project caught were found by checks done by hand: a fresh cl
 - Direct push to `main` after the ruleset was enabled was rejected:
 
   ```
-  [main 7cb3059] test: direct push should be blocked
+  ! [remote rejected] main -> main (push declined due to repository rule violations)
   ```
 
 ## Python/engineering concepts used
