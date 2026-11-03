@@ -71,7 +71,7 @@ ioc-analyzer --help                                  # run (or: python -m ioc_an
 
 Settings come from environment variables or the per-user file (see `config.py` and the README); a `.env` in the repo or current folder is not read. `.env.example` lists every setting.
 
-Packaging check (after any change to `pyproject.toml` or to files under `src/ioc_analyzer/data/`): build the wheel, install it into a fresh venv outside the repo, run `ioc-analyzer --version` and `python -c "from ioc_analyzer.extractors import is_domain; assert is_domain('evil.com')"`.
+CI (`.github/workflows/ci.yml`) runs on every PR and every push to `main`: `lint` (ruff check + format check), `test` (pytest, coverage must stay ≥ 90%, on Linux 3.12/3.13 and Windows 3.13) and `package` (build the wheel, install it into a fresh venv outside the checkout, smoke test with a dummy key). `main` is protected by a ruleset: changes land only through a PR with all five checks green. Run `ruff format src tests`, `ruff check src tests` and `pytest -q` locally before pushing; the pre-commit hook does the last two.
 
 ## Architecture
 
@@ -104,3 +104,5 @@ cli.py  →  extractors.py  →  enrich.py  →  clients/  →  normalization.py
 - `tests/conftest.py:isolated_settings` (autouse) points the settings file at an empty temp folder and removes our variables from the environment, so no test sees the developer's real keys. Tests set the variables they need with `monkeypatch.setenv`.
 - `tests/test_entry_points.py` runs `python -m ioc_analyzer` in a real subprocess (with `sys.executable`) to prove process-level behaviour: the entry point works and exit codes reach the shell. Keep these few; everything else calls `cli.main()` directly.
 - Tests need the package installed (`pip install -e .`); `test_version_comes_from_the_installed_package` fails otherwise.
+- Coverage only measures code run inside the pytest process. `__main__.py` shows 0% although `tests/test_entry_points.py` proves it works in a subprocess. Treat the 90% floor as protection against untested modules, not as proof of quality; never write a test just to raise the number.
+- Every test must pass on Windows as well as Linux (CI runs both). Use `pathlib` and `tmp_path`, never hard-coded `/` or `\` paths, and pass `platform`/`env` into code that branches on the OS, as `config.settings_file` does.

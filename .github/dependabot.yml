@@ -1,0 +1,8 @@
+# Weekly PRs that move each pinned action SHA to its newest release.
+# Pins stop silent changes; Dependabot keeps them from going stale.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
