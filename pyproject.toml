@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ioc-analyzer"
-version = "0.0.1"
+version = "0.1.0"
 description = "Extract IOCs from alert text and enrich them with VirusTotal and AbuseIPDB."
 readme = "README.md"
 requires-python = ">=3.12"

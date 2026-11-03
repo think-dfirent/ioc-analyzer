@@ -66,7 +66,7 @@ Choose one input source per run; text plus `--file` is a usage error.
 
 stdout carries results only. Warnings, errors and debug messages go to stderr, so `--json | jq` is always safe.
 
-`python -m ioc_analyzer` works the same. The old `python -m ioc_analyzer.app` still works but prints a deprecation warning; it will be removed.
+`python -m ioc_analyzer` works the same.
 
 ## What gets extracted
 
