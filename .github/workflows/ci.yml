@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege: this workflow only reads the code. No secrets are used.
+permissions:
+  contents: read
+
+# A new push to a PR cancels that PR's older, now pointless run.
+# Runs on main are never cancelled: each one checks a merged state.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -U pip
+      - run: pip install -e . --group dev
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+
+  test:
+    name: test (${{ matrix.os }}, ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false # one failing combination should not hide the others
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: "3.12" } # our minimum (requires-python)
+          - { os: ubuntu-latest, python: "3.13" }
+          - { os: windows-latest, python: "3.13" } # analysts' machines
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -U pip
+      - run: pip install -e . --group dev
+      - run: pytest -q --cov=ioc_analyzer --cov-report=term-missing --cov-fail-under=90
+
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.13"
+      - run: python -m pip install -U pip build
+      - run: python -m build --wheel
+      - name: Install the wheel into a fresh venv
+        run: |
+          python -m venv "$RUNNER_TEMP/smoke"
+          "$RUNNER_TEMP/smoke/bin/pip" install dist/*.whl
+      - name: Smoke test, outside the checkout, no network
+        working-directory: ${{ runner.temp }}
+        env:
+          VIRUSTOTAL_API: dummy # no IOCs below, so it is never sent anywhere
+        run: |
+          set -euo pipefail
+          bin="$RUNNER_TEMP/smoke/bin"
+          "$bin/ioc-analyzer" --version
+          "$bin/python" -m ioc_analyzer --version
+          "$bin/ioc-analyzer" --json "no iocs here" \
+            | "$bin/python" -c "import json, sys; assert json.load(sys.stdin) == {'results': []}"
+          "$bin/python" -c "from ioc_analyzer.extractors import is_domain; assert is_domain('evil.com') and not is_domain('j.doe')"
