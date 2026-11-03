@@ -40,3 +40,8 @@ def test_text_without_defang_markers_is_unchanged(text):
 def test_refang_is_idempotent():
     once = refang("hxxps[:]//evil[.]example and 1[.]2[.]3[.]4")
     assert refang(once) == once
+
+
+def test_ci_goes_red_on_a_failing_test():
+    # Deliberate failure for the Phase 8 demo; reverted in the next commit.
+    assert 1 + 1 == 3
