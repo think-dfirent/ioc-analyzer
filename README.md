@@ -1,5 +1,6 @@
 # ioc-analyzer
 
+[![CI](https://github.com/think-dfirent/ioc-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/think-dfirent/ioc-analyzer/actions/workflows/ci.yml)
 Pull IOCs (public IPv4, domains, MD5/SHA1/SHA256) out of any text — an alert, an email, a ticket — and look them up on VirusTotal and AbuseIPDB. Prints a readable report for analysts, or JSON for scripts and SOAR playbooks.
 
 ## Install
