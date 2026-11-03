@@ -24,7 +24,7 @@ Most real bugs this project caught were found by checks done by hand: a fresh cl
 - Direct push to `main` after the ruleset was enabled was rejected:
 
   ```
-  <paste the rejection message here>
+  [main 7cb3059] test: direct push should be blocked
   ```
 
 ## Python/engineering concepts used

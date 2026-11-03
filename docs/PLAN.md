@@ -111,7 +111,7 @@ Use `argparse` (standard library, no new dependency):
 - `docs/architecture.md`: the data flow (extract → enrich → report), what each module owns, how to add a new provider.
 - `CHANGELOG.md`, bump version to `0.1.0`, tag `v0.1.0`.
 
-**Done when:** someone who has never seen the project can install it, run it and add a provider using the docs alone.
+**Done when:** someone who has never seen the project can install it and run it using the README alone, `docs/architecture.md` explains the data flow and lists every file a new provider would touch, and `v0.1.0` is released from CI with an attestation. (Changed from "and add a provider using the docs alone": with two providers, a general provider interface would be premature; see Decisions.)
 
 ## Explicitly out of scope (don't build these)
 

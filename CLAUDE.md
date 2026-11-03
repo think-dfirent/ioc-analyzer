@@ -53,6 +53,10 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - CI never gets real API keys and never uses `pull_request_target`. Workflow permissions are `contents: read`; actions are pinned to full commit SHAs and updated by Dependabot.
 - `main` is protected: changes land through pull requests with green CI; no direct pushes, no admin bypass.
 
+- Public interface (what SemVer protects): the `ioc-analyzer` command and flags, exit codes, JSON field names and status values, setting names and the settings-file location. Below 1.0 these may change, but every change is listed in `CHANGELOG.md`.
+- Releases are built by CI from a `vX.Y.Z` tag on `main`, attached to a GitHub Release with a build-provenance attestation. Never upload a wheel built locally. Not published to PyPI.
+- Providers: no general provider interface until a third provider is actually needed (rule of three); `docs/architecture.md` lists every place a new provider touches.
+
 ## What this is
 
 A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) out of free text, looks them up on VirusTotal and AbuseIPDB, and prints a report per indicator (colored text, or JSON with `--json`). User-facing usage, the JSON shape and exit codes are in `README.md`.
