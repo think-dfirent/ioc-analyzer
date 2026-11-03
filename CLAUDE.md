@@ -48,6 +48,11 @@ These hold across all work. If a task seems to need breaking one, stop and ask.
 - Output (text and JSON) always shows the real, refanged value.
 - Test fixtures are synthetic: never paste real alert text, customer names, internal hosts or usernames into this public repo. Use `.example`/`.test` domains, EICAR hashes, and IPs already published in public reports.
 
+- CI (GitHub Actions) runs on pull requests and on pushes to `main`: ruff check, ruff format --check, pytest with coverage (fail under 90%), and a wheel smoke test (fresh venv, outside the checkout, dummy key, no network).
+- CI matrix: Linux with Python 3.12 and 3.13, Windows with Python 3.13.
+- CI never gets real API keys and never uses `pull_request_target`. Workflow permissions are `contents: read`; actions are pinned to full commit SHAs and updated by Dependabot.
+- `main` is protected: changes land through pull requests with green CI; no direct pushes, no admin bypass.
+
 ## What this is
 
 A CLI that pulls IOCs (public IPv4 addresses, domains, MD5/SHA1/SHA256 hashes) out of free text, looks them up on VirusTotal and AbuseIPDB, and prints a report per indicator (colored text, or JSON with `--json`). User-facing usage, the JSON shape and exit codes are in `README.md`.
