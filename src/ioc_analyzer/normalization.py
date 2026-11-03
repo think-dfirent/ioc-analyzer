@@ -6,9 +6,7 @@ def format_timestamp(timestamp):
     if not timestamp:
         return None
 
-    return datetime.fromtimestamp(timestamp, tz=UTC).strftime(
-        "%Y-%m-%d %H:%M UTC"
-    )
+    return datetime.fromtimestamp(timestamp, tz=UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
 def normalize_ip_result(vt_result, abuse_result, indicator=None, vt_status=None):

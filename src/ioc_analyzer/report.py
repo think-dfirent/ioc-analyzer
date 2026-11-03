@@ -133,7 +133,9 @@ def print_ip_result(result):
         tone = (
             "warning"
             if confidence is None
-            else "zero" if confidence == 0 else "warning"
+            else "zero"
+            if confidence == 0
+            else "warning"
         )
         value = show(confidence, "{}%")
         print(f"Confidence     : {color_text(value, tone)}")
@@ -216,6 +218,8 @@ def print_file_result(result):
             tone = (
                 "danger"
                 if verdict == "malicious"
-                else "warning" if verdict == "suspicious" else "muted"
+                else "warning"
+                if verdict == "suspicious"
+                else "muted"
             )
             print(f"{sandbox:<14}: {color_text(show(verdict), tone)}")

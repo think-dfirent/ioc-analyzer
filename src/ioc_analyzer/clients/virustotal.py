@@ -31,7 +31,7 @@ def build_url(artifact: str, kind: ArtifactKind) -> str:
     endpoint = _ENDPOINTS.get(kind)
     if endpoint is None:
         raise ValueError(f"Unsupported artifact type: {kind!r}")
-    return f"{BASE_URL}/{endpoint}/{quote(artifact, safe="")}"
+    return f"{BASE_URL}/{endpoint}/{quote(artifact, safe='')}"
 
 
 def parse_vt_ip(response):
